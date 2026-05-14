@@ -232,7 +232,7 @@ class NLPProcessor:
         self._load_model()
 
         if not self._loaded:
-            return []
+            return self._extract_relationships_fallback(abstract_text, entities)
 
         entity_texts = {e["entity_text"].lower() for e in entities}
         relationships: List[Dict[str, Any]] = []
@@ -444,6 +444,97 @@ class NLPProcessor:
                         }
                     )
         return results
+
+    def _extract_relationships_fallback(
+        self,
+        abstract_text: str,
+        entities: List[Dict[str, Optional[str]]],
+    ) -> List[Dict[str, Any]]:
+        """
+        Co-occurrence-based relationship extractor used when SciSpaCy is
+        unavailable.
+
+        Strategy:
+        - Split the abstract into sentences.
+        - Within each sentence, find all entity pairs that both appear.
+        - Assign a relationship type based on the entity type combination
+          (e.g. GENE_OR_GENOME + DISEASE → "associated_with") or a generic
+          "co_occurs_with" label.
+        - Limit to MAX_PAIRS_PER_SENT pairs per sentence to avoid
+          combinatorial explosion on entity-dense sentences.
+        """
+        MAX_PAIRS_PER_SENT = 6
+
+        # Build a lookup: entity_text_lower → entity record
+        entity_map: Dict[str, Dict] = {
+            e["entity_text"].lower(): e for e in entities
+        }
+
+        # Type-pair → relationship label
+        _TYPE_REL: Dict[tuple, str] = {
+            ("GENE_OR_GENOME", "DISEASE"): "associated_with",
+            ("DISEASE", "GENE_OR_GENOME"): "associated_with",
+            ("GENE_OR_GENOME", "CHEMICAL"): "interacts_with",
+            ("CHEMICAL", "GENE_OR_GENOME"): "interacts_with",
+            ("CHEMICAL", "DISEASE"): "treats",
+            ("DISEASE", "CHEMICAL"): "treated_by",
+            ("GENE_OR_GENOME", "BIOLOGICAL_PROCESS"): "regulates",
+            ("BIOLOGICAL_PROCESS", "GENE_OR_GENOME"): "regulated_by",
+            ("CELL", "DISEASE"): "implicated_in",
+            ("GENE_OR_GENOME", "CELL"): "expressed_in",
+        }
+
+        sentences = re.split(r'(?<=[.!?])\s+', abstract_text.strip())
+        relationships: List[Dict[str, Any]] = []
+        seen_pairs: set = set()
+
+        for sent in sentences:
+            sent = sent.strip()
+            if not sent:
+                continue
+            sent_lower = sent.lower()
+
+            # Find which entities appear in this sentence
+            present = [
+                ent for txt, ent in entity_map.items()
+                if txt in sent_lower
+            ]
+            if len(present) < 2:
+                continue
+
+            pairs_added = 0
+            for i in range(len(present)):
+                if pairs_added >= MAX_PAIRS_PER_SENT:
+                    break
+                for j in range(i + 1, len(present)):
+                    if pairs_added >= MAX_PAIRS_PER_SENT:
+                        break
+                    src = present[i]["entity_text"]
+                    tgt = present[j]["entity_text"]
+                    if src == tgt:
+                        continue
+                    pair_key = tuple(sorted([src.lower(), tgt.lower()]))
+                    if pair_key in seen_pairs:
+                        continue
+                    seen_pairs.add(pair_key)
+
+                    src_type = present[i].get("entity_type", "UNKNOWN")
+                    tgt_type = present[j].get("entity_type", "UNKNOWN")
+                    rel = _TYPE_REL.get(
+                        (src_type, tgt_type),
+                        "co_occurs_with",
+                    )
+                    relationships.append(
+                        {
+                            "source_entity": src,
+                            "target_entity": tgt,
+                            "relationship_type": rel,
+                            "sentence_context": sent,
+                        }
+                    )
+                    pairs_added += 1
+
+        return relationships
 
     @staticmethod
     def _entities_in_sent(sent, entity_texts: set) -> List[str]:
