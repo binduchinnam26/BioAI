@@ -110,11 +110,11 @@ def render_publication_trend(papers_df):
         row=2, col=1,
     )
 
-    layout = dict(
+    layout = {
         **_DARK_LAYOUT,
-        height=480,
-        showlegend=True,
-        legend=dict(
+        "height": 480,
+        "showlegend": True,
+        "legend": dict(
             orientation="h",
             yanchor="bottom",
             y=1.02,
@@ -123,15 +123,14 @@ def render_publication_trend(papers_df):
             bgcolor="rgba(0,0,0,0)",
             font=dict(color=COLOR_TEXT_SECONDARY, size=12),
         ),
-        hovermode="x unified",
-        xaxis2=dict(
+        "hovermode": "x unified",
+        "xaxis2": dict(
             gridcolor="#1F2937",
             zerolinecolor="#1F2937",
             tickformat="d",
         ),
-        yaxis=dict(gridcolor="#1F2937", zerolinecolor="#1F2937"),
-        yaxis2=dict(gridcolor="#1F2937", zerolinecolor="#1F2937"),
-    )
+        "yaxis2": dict(gridcolor="#1F2937", zerolinecolor="#1F2937"),
+    }
     fig.update_layout(**layout)
 
     # Style subplot titles
@@ -214,27 +213,27 @@ def render_topic_evolution(topics_over_time_df):
             )
         )
 
-    layout = dict(
+    layout = {
         **_DARK_LAYOUT,
-        height=400,
-        title=dict(
+        "height": 400,
+        "title": dict(
             text="Topic Landscape Over Time",
             font=dict(color=COLOR_TEXT_PRIMARY, size=14),
             x=0,
         ),
-        yaxis=dict(
+        "yaxis": dict(
             title="Relative Frequency (%)",
             gridcolor="#1F2937",
             zerolinecolor="#1F2937",
             ticksuffix="%",
         ),
-        xaxis=dict(
+        "xaxis": dict(
             title="Publication Year",
             gridcolor="#1F2937",
             zerolinecolor="#1F2937",
             tickformat="d",
         ),
-        legend=dict(
+        "legend": dict(
             orientation="v",
             x=1.01,
             y=0.5,
@@ -242,8 +241,8 @@ def render_topic_evolution(topics_over_time_df):
             font=dict(color=COLOR_TEXT_SECONDARY, size=10),
             itemwidth=30,
         ),
-        hovermode="x unified",
-    )
+        "hovermode": "x unified",
+    }
     fig.update_layout(**layout)
     st.plotly_chart(fig, use_container_width=True, config=_NO_MODEBAR)
 
@@ -371,26 +370,26 @@ def render_top_keywords(papers_df):
             seen_legend.add(tr.name)
 
     fig = go.Figure(data=bar_traces)
-    fig.update_layout(
+    fig.update_layout(**{
         **_DARK_LAYOUT,
-        height=520,
-        barmode="overlay",
-        title=dict(
+        "height": 520,
+        "barmode": "overlay",
+        "title": dict(
             text="Top 20 Keywords by Frequency",
             font=dict(color=COLOR_TEXT_PRIMARY, size=14),
             x=0,
         ),
-        xaxis=dict(
+        "xaxis": dict(
             title="Frequency (papers)",
             gridcolor="#1F2937",
             zerolinecolor="#1F2937",
         ),
-        yaxis=dict(
+        "yaxis": dict(
             autorange="reversed",
             tickfont=dict(size=11),
             gridcolor="#1F2937",
         ),
-        legend=dict(
+        "legend": dict(
             orientation="h",
             yanchor="bottom",
             y=1.02,
@@ -399,7 +398,7 @@ def render_top_keywords(papers_df):
             bgcolor="rgba(0,0,0,0)",
             font=dict(color=COLOR_TEXT_SECONDARY, size=11),
         ),
-    )
+    })
     st.plotly_chart(fig, use_container_width=True, config=_NO_MODEBAR)
 
 
@@ -478,23 +477,23 @@ def render_author_productivity(papers_df):
             ),
         )
     )
-    fig.update_layout(
+    fig.update_layout(**{
         **_DARK_LAYOUT,
-        height=460,
-        title=dict(
+        "height": 460,
+        "title": dict(
             text="Top 15 Authors by Publication Count",
             font=dict(color=COLOR_TEXT_PRIMARY, size=14),
             x=0,
         ),
-        xaxis=dict(
+        "xaxis": dict(
             title="Number of Publications",
             gridcolor="#1F2937",
             zerolinecolor="#1F2937",
         ),
-        yaxis=dict(
+        "yaxis": dict(
             tickfont=dict(size=11),
             gridcolor="#1F2937",
         ),
-        showlegend=False,
-    )
+        "showlegend": False,
+    })
     st.plotly_chart(fig, use_container_width=True, config=_NO_MODEBAR)
