@@ -1,0 +1,438 @@
+/* ============================================================
+   BioLitAI-X  –  Global Theme
+   Dark design system: background #0A0F1E, surface #111827
+   ============================================================ */
+
+@import url('https://fonts.googleapis.com/css2?family=Open+Sans:wght@300;400;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+/* ── Reset / base ────────────────────────────────────────── */
+html,
+body,
+[class*="css"] {
+  background-color: #0A0F1E;
+  color: #F9FAFB;
+  font-family: 'Open Sans', Arial, sans-serif;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ── Hide default Streamlit chrome ───────────────────────── */
+#MainMenu      { visibility: hidden; }
+footer         { visibility: hidden; }
+header         { visibility: hidden; }
+
+/* ── App container ───────────────────────────────────────── */
+.stApp {
+  background-color: #0A0F1E;
+}
+
+.main .block-container {
+  padding-top: 2rem;
+  padding-bottom: 4rem;
+  max-width: 1400px;
+  animation: fadeIn 200ms ease-out;
+}
+
+/* ── Sidebar ─────────────────────────────────────────────── */
+[data-testid="stSidebar"] {
+  background-color: #111827;
+  border-right: 1px solid #1F2937;
+}
+
+[data-testid="stSidebar"] .block-container {
+  padding-top: 1.5rem;
+  padding-bottom: 2rem;
+}
+
+[data-testid="stSidebar"] * {
+  color: #F9FAFB;
+}
+
+/* ── Metric containers ───────────────────────────────────── */
+[data-testid="stMetric"],
+div.metric-card {
+  background: #1C2539;
+  border-radius: 8px;
+  padding: 1.5rem;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+  transition: transform 200ms ease, box-shadow 200ms ease;
+}
+
+[data-testid="stMetric"]:hover,
+div.metric-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.4);
+}
+
+[data-testid="stMetricLabel"] {
+  color: #9CA3AF;
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+[data-testid="stMetricValue"] {
+  color: #F9FAFB;
+  font-size: 2rem;
+  font-weight: 700;
+}
+
+[data-testid="stMetricDelta"] {
+  font-size: 0.85rem;
+}
+
+/* ── Buttons ─────────────────────────────────────────────── */
+.stButton > button {
+  background: #3B82F6;
+  color: #FFFFFF;
+  border: none;
+  border-radius: 6px;
+  padding: 0.5rem 1.25rem;
+  font-family: 'Open Sans', Arial, sans-serif;
+  font-weight: 600;
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: background-color 150ms ease, transform 100ms ease,
+              box-shadow 150ms ease;
+}
+
+.stButton > button:hover {
+  background: #2563EB;
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.35);
+}
+
+.stButton > button:active {
+  transform: scale(0.97);
+  background: #1D4ED8;
+}
+
+.stButton > button:focus {
+  outline: 2px solid #3B82F6;
+  outline-offset: 2px;
+}
+
+/* Secondary button variant */
+.stButton > button[kind="secondary"] {
+  background: #1C2539;
+  border: 1px solid #1F2937;
+  color: #9CA3AF;
+}
+
+.stButton > button[kind="secondary"]:hover {
+  background: #243047;
+  color: #F9FAFB;
+}
+
+/* ── Input fields ─────────────────────────────────────────── */
+.stTextInput > div > div > input,
+.stTextArea > div > div > textarea,
+.stNumberInput > div > div > input {
+  background: #111827;
+  border: 1px solid #1F2937;
+  border-radius: 6px;
+  color: #F9FAFB;
+  font-family: 'Open Sans', Arial, sans-serif;
+  font-size: 0.875rem;
+  padding: 0.5rem 0.75rem;
+  transition: border-color 150ms ease, box-shadow 150ms ease;
+}
+
+.stTextInput > div > div > input:focus,
+.stTextArea > div > div > textarea:focus,
+.stNumberInput > div > div > input:focus {
+  border-color: #3B82F6;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.3);
+  outline: none;
+}
+
+.stTextInput > div > div > input::placeholder,
+.stTextArea > div > div > textarea::placeholder {
+  color: #6B7280;
+}
+
+/* ── Selectbox / Multiselect ─────────────────────────────── */
+.stSelectbox > div > div,
+.stMultiselect > div > div {
+  background: #111827;
+  border: 1px solid #1F2937;
+  border-radius: 6px;
+  color: #F9FAFB;
+}
+
+.stSelectbox > div > div:hover,
+.stMultiselect > div > div:hover {
+  border-color: #3B82F6;
+}
+
+[data-baseweb="select"] > div {
+  background: #111827 !important;
+  border-color: #1F2937 !important;
+  color: #F9FAFB !important;
+}
+
+[data-baseweb="popover"] {
+  background: #1C2539 !important;
+  border: 1px solid #1F2937 !important;
+}
+
+[data-baseweb="menu"] {
+  background: #1C2539 !important;
+}
+
+[data-baseweb="option"]:hover {
+  background: #243047 !important;
+}
+
+/* ── Slider ──────────────────────────────────────────────── */
+.stSlider > div > div > div > div {
+  background: #3B82F6;
+}
+
+.stSlider [data-baseweb="slider"] div[role="slider"] {
+  background: #3B82F6;
+  border: 2px solid #1D4ED8;
+}
+
+/* ── Radio / Checkbox ────────────────────────────────────── */
+.stRadio > label,
+.stCheckbox > label {
+  color: #F9FAFB;
+}
+
+/* ── Tabs ────────────────────────────────────────────────── */
+.stTabs [data-baseweb="tab-list"] {
+  background: #111827;
+  border-bottom: 1px solid #1F2937;
+  gap: 0.25rem;
+}
+
+.stTabs [data-baseweb="tab"] {
+  background: transparent;
+  color: #9CA3AF;
+  border-radius: 6px 6px 0 0;
+  font-weight: 600;
+  padding: 0.5rem 1rem;
+  transition: color 150ms ease, background-color 150ms ease;
+}
+
+.stTabs [data-baseweb="tab"]:hover {
+  color: #F9FAFB;
+  background: #1C2539;
+}
+
+.stTabs [aria-selected="true"] {
+  color: #3B82F6 !important;
+  border-bottom: 2px solid #3B82F6 !important;
+  background: transparent !important;
+}
+
+/* ── Expander ────────────────────────────────────────────── */
+.streamlit-expanderHeader {
+  background: #1C2539;
+  border: 1px solid #1F2937;
+  border-radius: 6px;
+  color: #F9FAFB;
+  font-weight: 600;
+}
+
+.streamlit-expanderContent {
+  background: #111827;
+  border: 1px solid #1F2937;
+  border-top: none;
+  border-radius: 0 0 6px 6px;
+}
+
+/* ── Dataframe / table ───────────────────────────────────── */
+.stDataFrame,
+.dataframe {
+  background: #111827;
+  color: #F9FAFB;
+  border-radius: 8px;
+  border: 1px solid #1F2937;
+  font-size: 0.85rem;
+}
+
+.stDataFrame thead th {
+  background: #1C2539;
+  color: #9CA3AF;
+  font-weight: 600;
+  border-bottom: 1px solid #1F2937;
+  padding: 0.6rem 1rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 0.75rem;
+}
+
+.stDataFrame tbody tr {
+  border-bottom: 1px solid #1F2937;
+  transition: background 120ms ease;
+}
+
+.stDataFrame tbody tr:hover {
+  background: #1C2539;
+}
+
+.stDataFrame tbody td {
+  color: #F9FAFB;
+  padding: 0.55rem 1rem;
+}
+
+/* ── Progress bar ────────────────────────────────────────── */
+.stProgress > div > div > div > div {
+  background: #3B82F6;
+  border-radius: 4px;
+}
+
+.stProgress > div > div > div {
+  background: #1C2539;
+  border-radius: 4px;
+}
+
+/* ── Alert / info boxes ──────────────────────────────────── */
+.stAlert {
+  border-radius: 8px;
+  border-left-width: 4px;
+}
+
+[data-baseweb="notification"] {
+  background: #1C2539 !important;
+  border-radius: 8px !important;
+  color: #F9FAFB !important;
+}
+
+/* ── Spinner ─────────────────────────────────────────────── */
+.stSpinner > div {
+  border-top-color: #3B82F6 !important;
+}
+
+/* ── Code / monospace ────────────────────────────────────── */
+code,
+pre,
+.mono {
+  font-family: 'JetBrains Mono', 'Courier New', monospace;
+  background: #1C2539;
+  border-radius: 4px;
+  color: #34C78A;
+}
+
+code {
+  padding: 0.1em 0.4em;
+  font-size: 0.85em;
+}
+
+pre {
+  padding: 1rem;
+  overflow-x: auto;
+  border: 1px solid #1F2937;
+}
+
+/* ── Scrollbar ───────────────────────────────────────────── */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #111827;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #3B82F6;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #2563EB;
+}
+
+/* ── Sidebar nav items ───────────────────────────────────── */
+[data-testid="stSidebar"] .stRadio > div > label,
+[data-testid="stSidebar"] .stSelectbox > div > div {
+  transition: background-color 180ms ease, color 180ms ease;
+  border-radius: 6px;
+  padding: 0.3rem 0.5rem;
+}
+
+[data-testid="stSidebar"] .stRadio > div > label:hover {
+  background: #1C2539;
+  color: #3B82F6;
+}
+
+/* ── Divider ─────────────────────────────────────────────── */
+hr {
+  border: none;
+  border-top: 1px solid #1F2937;
+  margin: 1.5rem 0;
+}
+
+/* ── Tooltip ─────────────────────────────────────────────── */
+[data-baseweb="tooltip"] {
+  background: #1C2539 !important;
+  color: #F9FAFB !important;
+  border: 1px solid #1F2937 !important;
+  border-radius: 6px !important;
+  font-size: 0.8rem !important;
+}
+
+/* ── Page entry animation ────────────────────────────────── */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ── Skeleton / shimmer loading ──────────────────────────── */
+@keyframes shimmer {
+  0% {
+    background-position: -1000px 0;
+  }
+  100% {
+    background-position: 1000px 0;
+  }
+}
+
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    #1C2539 25%,
+    #243047 50%,
+    #1C2539 75%
+  );
+  background-size: 2000px 100%;
+  animation: shimmer 1.8s infinite linear;
+  border-radius: 6px;
+}
+
+/* ── Utility classes ─────────────────────────────────────── */
+.text-primary   { color: #F9FAFB; }
+.text-secondary { color: #9CA3AF; }
+.text-accent    { color: #3B82F6; }
+.text-success   { color: #10B981; }
+.text-warning   { color: #F59E0B; }
+.text-danger    { color: #EF4444; }
+
+.bg-surface   { background: #111827; }
+.bg-elevated  { background: #1C2539; }
+
+.rounded  { border-radius: 8px; }
+.border   { border: 1px solid #1F2937; }
+
+/* ── Plotly chart containers ─────────────────────────────── */
+.stPlotlyChart {
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+/* ── iframe (Pyvis network) ──────────────────────────────── */
+iframe {
+  border-radius: 8px;
+  border: 1px solid #1F2937;
+}
