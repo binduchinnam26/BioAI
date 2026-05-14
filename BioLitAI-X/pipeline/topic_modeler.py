@@ -41,6 +41,7 @@ class TopicModeler:
             from bertopic import BERTopic
             from umap import UMAP
             from hdbscan import HDBSCAN
+            from sklearn.feature_extraction.text import CountVectorizer
         except ImportError as exc:
             raise ImportError(
                 "BERTopic / UMAP / HDBSCAN not installed. "
@@ -60,12 +61,49 @@ class TopicModeler:
             cluster_selection_method="eom",
             prediction_data=True,
         )
+
+        # Biomedical stopwords: English function words + generic scientific
+        # boilerplate that carries no topical signal.
+        _BIOMEDICAL_STOPWORDS = [
+            "study", "studies", "result", "results", "method", "methods",
+            "conclusion", "conclusions", "background", "objective", "objectives",
+            "purpose", "introduction", "discussion", "abstract", "paper",
+            "aim", "aims", "finding", "findings", "patient", "patients",
+            "analysis", "data", "used", "using", "based", "significantly",
+            "significant", "showed", "shown", "found", "reported", "compared",
+            "associated", "respectively", "however", "therefore", "although",
+            "including", "included", "total", "number", "group", "groups",
+            "control", "controls", "effect", "effects", "level", "levels",
+            "increase", "increased", "decrease", "decreased", "high", "higher",
+            "low", "lower", "similar", "different", "known", "novel",
+            "important", "role", "function", "type", "types", "sample",
+            "samples", "case", "cases", "activity", "activities",
+        ]
+
+        vectorizer_model = CountVectorizer(
+            stop_words="english",          # remove all English function words
+            min_df=2,                      # word must appear in ≥2 docs
+            ngram_range=(1, 2),            # include bigrams for biomedical phrases
+            max_features=10_000,
+        )
+        # Extend with domain-specific stopwords
+        if hasattr(vectorizer_model, "stop_words_"):
+            pass  # will be set after fit; patch via additional param instead
+        existing_stops = vectorizer_model.get_params().get("stop_words", set())
+        if isinstance(existing_stops, str) and existing_stops == "english":
+            from sklearn.feature_extraction.text import ENGLISH_STOP_WORDS
+            combined_stops = frozenset(ENGLISH_STOP_WORDS) | frozenset(_BIOMEDICAL_STOPWORDS)
+        else:
+            combined_stops = frozenset(_BIOMEDICAL_STOPWORDS)
+        vectorizer_model.set_params(stop_words=combined_stops)
+
         nr_topics = (
             None if BERTOPIC_NR_TOPICS == "auto" else int(BERTOPIC_NR_TOPICS)
         )
         self._model = BERTopic(
             umap_model=umap_model,
             hdbscan_model=hdbscan_model,
+            vectorizer_model=vectorizer_model,
             nr_topics=nr_topics,
             calculate_probabilities=True,
             verbose=False,
@@ -123,8 +161,8 @@ class TopicModeler:
     def get_topic_labels(self) -> Dict[int, str]:
         """
         Return a mapping {topic_id: label_string} where each label is
-        the top-3 keywords for that topic joined by ' / '.
-        Labels are derived from the data — never hardcoded.
+        the top meaningful keywords for that topic joined by ' / '.
+        Single-character tokens and pure-numeric tokens are skipped.
         """
         if self._model is None:
             return {}
@@ -135,8 +173,12 @@ class TopicModeler:
                 continue
             words = self._model.get_topic(topic_id)
             if words:
-                top_words = [w for w, _ in words[:3]]
-                labels[topic_id] = " / ".join(top_words)
+                # Filter out single-char tokens and purely numeric strings
+                meaningful = [
+                    w for w, _ in words
+                    if len(w) > 1 and not w.isdigit()
+                ][:5]
+                labels[topic_id] = " / ".join(meaningful) if meaningful else f"Topic {topic_id}"
             else:
                 labels[topic_id] = f"Topic {topic_id}"
         return labels
