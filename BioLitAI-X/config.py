@@ -75,13 +75,18 @@ OPENALEX_EMAIL = os.getenv("ENTREZ_EMAIL")   # reuse same contact email
 
 # ── Hypothesis generation ─────────────────────────────────────────────────────
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-GEMINI_MODEL = "gemini-1.5-pro"
+# Default to flash — generous free-tier quota (15 RPM / 1 500 RPD).
+# Override to "gemini-1.5-pro" in .env for higher quality if quota allows.
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
 GEMINI_TEMPERATURE = 0.3
 GEMINI_TOP_P = 0.85
 GEMINI_TOP_K = 40
 GEMINI_MAX_OUTPUT_TOKENS = 2048
-HYPOTHESIS_TOP_GAPS = 10
-HYPOTHESIS_API_DELAY_SECONDS = 2
+# Free-tier safe: process 5 gaps per run by default (flash: 15 RPM, pro: 2 RPM).
+# Raise in .env (HYPOTHESIS_TOP_GAPS=10) only if on a paid plan.
+HYPOTHESIS_TOP_GAPS = int(os.getenv("HYPOTHESIS_TOP_GAPS", "5"))
+# Inter-call delay is enforced dynamically per model inside hypothesis_generator.py
+HYPOTHESIS_API_DELAY_SECONDS = 4   # minimum delay; actual may be longer for pro
 HYPOTHESIS_MAX_RETRIES = 3
 
 # ── Logging ───────────────────────────────────────────────────────────────────
