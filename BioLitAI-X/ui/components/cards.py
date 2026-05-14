@@ -404,7 +404,7 @@ def render_gap_card(gap: dict, index: int):
 
     entity_a = gap.get("entity_a") or gap.get("concept_a", "Unknown")
     entity_b = gap.get("entity_b") or gap.get("concept_b", "")
-    gap_type = gap.get("gap_type", "structural")
+    gap_type = gap.get("type", gap.get("gap_type", "structural"))
     score = float(gap.get("score", 0.0))
     description = gap.get("description", "")
     evidence_pmids = gap.get("evidence_pmids", [])

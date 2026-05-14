@@ -244,7 +244,7 @@ def _render_gap_list(gap_report: list):
     # Filter controls
     col_type, col_search = st.columns([2, 2])
     with col_type:
-        gap_types_available = sorted(set(g.get("gap_type", "structural") for g in gap_report))
+        gap_types_available = sorted(set(g.get("type", "structural") for g in gap_report))
         type_filter = st.multiselect(
             "Gap type",
             gap_types_available,
@@ -262,10 +262,10 @@ def _render_gap_list(gap_report: list):
 
     filtered = [
         g for g in gap_report
-        if g.get("gap_type", "structural") in type_filter
+        if g.get("type", "structural") in type_filter
         and (
             not gap_search
-            or gap_search.lower() in (g.get("entity_a", "") + " " + g.get("entity_b", "")).lower()
+            or gap_search.lower() in (g.get("concept_a", "") + " " + g.get("concept_b", "")).lower()
         )
     ]
 

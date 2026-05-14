@@ -135,7 +135,7 @@ def _render_gap_summary(gap_report: list):
         for i, gap in enumerate(sorted_gaps[:20]):
             entity_a = gap.get("entity_a", gap.get("concept_a", ""))
             entity_b = gap.get("entity_b", gap.get("concept_b", ""))
-            gap_type = gap.get("gap_type", "structural")
+            gap_type = gap.get("type", "structural")
             score = gap.get("score", 0.0)
             color = type_colors.get(gap_type, "#3B82F6")
             type_label = gap_type.replace("_", " ").title()
