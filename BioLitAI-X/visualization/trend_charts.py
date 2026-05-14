@@ -13,6 +13,7 @@ from config import (
     COLOR_WARNING, COLOR_SECONDARY, COLOR_DANGER, COLOR_TEXT_PRIMARY,
     COLOR_TEXT_SECONDARY, COMMUNITY_COLORS,
 )
+from utils.helpers import hex_to_rgba
 
 _DARK_LAYOUT = dict(
     plot_bgcolor=COLOR_BACKGROUND,
@@ -202,8 +203,7 @@ def render_topic_evolution(topics_over_time_df):
                 mode="lines",
                 stackgroup="one",
                 line=dict(width=0.5, color=color, shape="spline"),
-                fillcolor=color.replace("#", "rgba(")
-                    if not color.startswith("rgba") else color,
+                fillcolor=hex_to_rgba(color, 0.6) if color.startswith("#") else color,
                 opacity=0.8,
                 hovertemplate=(
                     f"<b>{topic_label}</b><br>"
