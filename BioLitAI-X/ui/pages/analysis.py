@@ -123,12 +123,6 @@ def _render_coauthor_tab(session_state):
 
     graph = session_state.get("coauthor_graph")
 
-    _render_network_controls(
-        "Co-authorship Network",
-        "Nodes = authors · Edges = co-authored papers · "
-        "Node size ∝ paper count · Colours = Louvain communities",
-    )
-
     if graph is None or graph.number_of_nodes() == 0:
         st.info(
             "Co-authorship network is empty. "
@@ -138,15 +132,7 @@ def _render_coauthor_tab(session_state):
 
     try:
         from visualization.network_viz import render_coauthorship_network
-        filters = _get_network_filters("coauthor", graph)
-        render_coauthorship_network(
-            graph,
-            min_link_weight=filters["min_link"],
-            min_node_size=filters["min_size"],
-            search_term=filters["search"],
-            community_filter=filters["community"],
-        )
-        _render_network_stats(graph)
+        render_coauthorship_network(graph)
     except Exception as exc:
         st.error(f"Could not render co-authorship network: {exc}")
 
@@ -156,13 +142,6 @@ def _render_keyword_net_tab(session_state, papers_df):
 
     graph = session_state.get("keyword_graph")
 
-    _render_network_controls(
-        "Keyword Co-occurrence Network",
-        "Nodes = keywords (author, MeSH, chemical) · "
-        "Edges = co-appearance in same paper · "
-        "Shapes: ● author · ■ MeSH desc · ▲ MeSH qual · ◆ chemical · ★ pub type",
-    )
-
     if graph is None or graph.number_of_nodes() == 0:
         st.info(
             "Keyword network is empty. Papers may not have enough keyword overlap."
@@ -171,15 +150,7 @@ def _render_keyword_net_tab(session_state, papers_df):
 
     try:
         from visualization.network_viz import render_keyword_network
-        filters = _get_network_filters("keyword", graph)
-        render_keyword_network(
-            graph,
-            min_link_weight=filters["min_link"],
-            min_node_size=filters["min_size"],
-            search_term=filters["search"],
-            community_filter=filters["community"],
-        )
-        _render_network_stats(graph)
+        render_keyword_network(graph)
     except Exception as exc:
         st.error(f"Could not render keyword network: {exc}")
 
@@ -188,12 +159,6 @@ def _render_topic_net_tab(session_state, papers_df):
     import streamlit as st
 
     graph = session_state.get("topic_graph")
-
-    _render_network_controls(
-        "Topic Similarity Network",
-        "Nodes = topics · Edges = topic co-occurrence in papers · "
-        "Node size ∝ topic prevalence",
-    )
 
     if graph is None or graph.number_of_nodes() == 0:
         st.info(
@@ -204,13 +169,7 @@ def _render_topic_net_tab(session_state, papers_df):
 
     try:
         from visualization.network_viz import render_topic_network
-        filters = _get_network_filters("topic", graph)
-        render_topic_network(
-            graph,
-            min_link_weight=filters["min_link"],
-            search_term=filters["search"],
-        )
-        _render_network_stats(graph)
+        render_topic_network(graph)
     except Exception as exc:
         st.error(f"Could not render topic network: {exc}")
 
