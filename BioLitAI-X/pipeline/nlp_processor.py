@@ -29,6 +29,68 @@ RELATION_VERBS = {
     "ccomp", "xcomp", "relcl", "advcl",
 }
 
+# ── Regex-based fallback patterns (used when SciSpaCy is not installed) ────────
+
+# Common non-biomedical uppercase abbreviations to exclude from gene matches
+_UPPERCASE_STOPWORDS = {
+    "A", "AN", "AS", "AT", "BE", "BY", "DO", "GO", "IF", "IN", "IS", "IT",
+    "NO", "OF", "ON", "OR", "SO", "TO", "UP", "US", "WE",
+    "AND", "ARE", "BUT", "CAN", "DID", "FOR", "HAD", "HAS", "HER", "HIM",
+    "HIS", "HOW", "ITS", "LET", "MAY", "NOT", "NOW", "OUR", "OUT", "OWN",
+    "SAY", "SHE", "THE", "TWO", "USE", "VIA", "WAS", "WHO", "WHY", "YET",
+    "ALSO", "BEEN", "BOTH", "CAME", "DOES", "EACH", "EVEN", "FROM", "GAVE",
+    "HAVE", "HERE", "INTO", "JUST", "LIKE", "MADE", "MANY", "MORE", "MOST",
+    "MUCH", "MUST", "OVER", "SAME", "SUCH", "THAN", "THAT", "THEM", "THEN",
+    "THEY", "THIS", "THUS", "UPON", "USED", "VERY", "WERE", "WITH", "YEAR",
+    "AFTER", "AMONG", "BEING", "COULD", "FOUND", "GIVEN", "GROUP", "HEART",
+    "HUMAN", "LEVEL", "LOWER", "MAJOR", "MIGHT", "NOTED", "OFTEN", "OTHER",
+    "SHOWN", "SINCE", "STUDY", "THESE", "THREE", "TOTAL", "UNDER", "USING",
+    "WEEKS", "WHICH", "WHILE", "YEARS", "ABOVE", "ABOUT",
+    # Location/org abbreviations
+    "USA", "UK", "EU", "UN", "WHO", "FDA", "NIH", "CDC", "EPA",
+    # Generic scientific
+    "DNA", "RNA", "PCR", "MRI", "CT", "UV", "IR",
+}
+
+_FALLBACK_PATTERNS: List[tuple] = [
+    # Gene/protein symbols: 2-6 uppercase letters + optional digits
+    (re.compile(r'\b([A-Z]{2,6}\d*)\b'), "GENE_OR_GENOME"),
+    # Gene with embedded digits: BRCA1, TP53, CDK4, HER2
+    (re.compile(r'\b([A-Z]{1,4}\d+[A-Z]?)\b'), "GENE_OR_GENOME"),
+    # Cytokine/growth-factor families: IL-6, TNF-α, IFN-gamma, VEGF-A
+    (re.compile(
+        r'\b((?:IL|TNF|IFN|TGF|VEGF|EGF|FGF|IGF|CSF|HGF|PDGF|NGF|BMP|WNT)'
+        r'[-–][\w]+)\b', re.IGNORECASE
+    ), "GENE_OR_GENOME"),
+    # Diseases by suffix (min 6 chars to skip short common words)
+    (re.compile(
+        r'\b(\w{3,}(?:oma|itis|emia|pathy|osis|plasia|trophy|oma|ectomy|otomy))\b',
+        re.IGNORECASE
+    ), "DISEASE"),
+    # Cancer/syndrome/disorder as standalone or with preceding adjective
+    (re.compile(
+        r'\b((?:[A-Z][a-z]+[-\s]){0,2}'
+        r'(?:cancer|carcinoma|sarcoma|lymphoma|leukemia|melanoma|glioma'
+        r'|syndrome|disorder|disease|tumor|tumour))\b'
+    ), "DISEASE"),
+    # Drugs/biologics by suffix
+    (re.compile(
+        r'\b(\w{4,}(?:mab|nib|zumab|tinib|ciclib|mycin|cillin|cycline'
+        r'|statin|sartan|prazole|vir|ide|ine|ol))\b',
+        re.IGNORECASE
+    ), "CHEMICAL"),
+    # Cell types by suffix
+    (re.compile(r'\b(\w{3,}(?:cyte|blast|phage|phil|sphere)s?)\b',
+                re.IGNORECASE), "CELL"),
+    # Biological processes (high-confidence specific terms)
+    (re.compile(
+        r'\b(apoptosis|autophagy|necrosis|ferroptosis|pyroptosis'
+        r'|angiogenesis|metastasis|proliferation|differentiation'
+        r'|senescence|inflammation|fibrosis|neurodegeneration)\b',
+        re.IGNORECASE
+    ), "BIOLOGICAL_PROCESS"),
+]
+
 
 class NLPProcessor:
     """
@@ -41,33 +103,44 @@ class NLPProcessor:
         self._nlp = None
         self._linker = None
         self._loaded = False
+        self._scispacy_available: Optional[bool] = None  # None = not yet checked
 
     # ── Model loading ─────────────────────────────────────────────────────────
 
     def _load_model(self):
-        """Lazy-load SciSpaCy model and UMLS linker on first use."""
-        if self._loaded:
+        """Lazy-load SciSpaCy model and UMLS linker on first use.
+
+        Sets self._scispacy_available to False (without raising) if scispacy or
+        its model is missing so callers can fall back to regex NER.
+        """
+        if self._loaded or self._scispacy_available is False:
             return
         try:
             import spacy
             from scispacy.linking import EntityLinker  # noqa: F401
-        except ImportError as exc:
-            raise ImportError(
-                "SciSpaCy is not installed. Run: "
-                "pip install scispacy && "
+        except ImportError:
+            logger.warning(
+                "SciSpaCy not installed — entity extraction will use the "
+                "built-in regex fallback. "
+                "Install with: pip install scispacy && "
                 "pip install https://s3-us-west-2.amazonaws.com/ai2-s2-scispacy/"
                 "releases/v0.5.4/en_core_sci_lg-0.5.4.tar.gz"
-            ) from exc
+            )
+            self._scispacy_available = False
+            return
 
         logger.info("Loading SciSpaCy model: en_core_sci_lg …")
         try:
             self._nlp = spacy.load("en_core_sci_lg")
-        except OSError as exc:
-            raise OSError(
-                "SciSpaCy model 'en_core_sci_lg' not found. Install with:\n"
-                "pip install https://s3-us-west-2.amazonaws.com/ai2-s2-scispacy/"
-                "releases/v0.5.4/en_core_sci_lg-0.5.4.tar.gz"
-            ) from exc
+        except OSError:
+            logger.warning(
+                "SciSpaCy model 'en_core_sci_lg' not found — "
+                "falling back to regex NER. "
+                "Install model with: pip install https://s3-us-west-2.amazonaws.com/"
+                "ai2-s2-scispacy/releases/v0.5.4/en_core_sci_lg-0.5.4.tar.gz"
+            )
+            self._scispacy_available = False
+            return
 
         logger.info("Adding UMLS entity linker …")
         self._nlp.add_pipe(
@@ -82,6 +155,7 @@ class NLPProcessor:
         )
         self._linker = self._nlp.get_pipe("scispacy_linker")
         self._loaded = True
+        self._scispacy_available = True
         logger.info("NLPProcessor model loaded successfully.")
 
     # ── Entity extraction ─────────────────────────────────────────────────────
@@ -101,6 +175,9 @@ class NLPProcessor:
         if not abstract_text or not isinstance(abstract_text, str):
             return []
         self._load_model()
+
+        if not self._loaded:
+            return self._extract_entities_fallback(abstract_text)
 
         try:
             doc = self._nlp(abstract_text[:100_000])  # guard against huge texts
@@ -153,6 +230,9 @@ class NLPProcessor:
         if not abstract_text or not entities:
             return []
         self._load_model()
+
+        if not self._loaded:
+            return []
 
         entity_texts = {e["entity_text"].lower() for e in entities}
         relationships: List[Dict[str, Any]] = []
@@ -327,6 +407,43 @@ class NLPProcessor:
             return ent.sent.text.strip()
         except Exception:
             return ent.text
+
+    def _extract_entities_fallback(
+        self, abstract_text: str
+    ) -> List[Dict[str, Optional[str]]]:
+        """
+        Regex-based entity extractor used when SciSpaCy is not installed.
+        Identifies gene symbols, disease terms, drug/chemical names, and cell
+        types using pattern matching against _FALLBACK_PATTERNS.
+        """
+        results: List[Dict[str, Optional[str]]] = []
+        seen: set = set()
+        sentences = re.split(r'(?<=[.!?])\s+', abstract_text.strip())
+
+        for sent in sentences:
+            sent = sent.strip()
+            if not sent:
+                continue
+            for pattern, etype in _FALLBACK_PATTERNS:
+                for m in pattern.finditer(sent):
+                    entity_text = m.group(1).strip()
+                    if len(entity_text) < 3:
+                        continue
+                    if entity_text.upper() in _UPPERCASE_STOPWORDS:
+                        continue
+                    key = (entity_text.lower(), etype)
+                    if key in seen:
+                        continue
+                    seen.add(key)
+                    results.append(
+                        {
+                            "entity_text": entity_text,
+                            "entity_type": etype,
+                            "umls_id": None,
+                            "sentence_context": sent,
+                        }
+                    )
+        return results
 
     @staticmethod
     def _entities_in_sent(sent, entity_texts: set) -> List[str]:
