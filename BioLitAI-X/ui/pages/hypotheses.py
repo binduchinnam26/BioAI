@@ -127,7 +127,7 @@ def _run_generation(session_state, papers_df, gap_report, top_n: int):
         hypotheses = []
         progress_ph.progress(0.0)
 
-        def _progress_cb(done: int, total: int):
+        def _progress_cb(done: int, total: int, status: str = ""):
             frac = done / total if total > 0 else 0.0
             progress_ph.progress(frac)
             status_ph.markdown(
