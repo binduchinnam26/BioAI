@@ -150,6 +150,7 @@ def _post_process_kg_html(
 # ── Entity type legend ────────────────────────────────────────────────────────
 
 def _render_entity_legend():
+    import streamlit as st
     st.markdown(
         "<div style='font-size:11px;color:#9CA3AF;margin-top:16px;"
         "font-weight:600;'>ENTITY TYPES</div>",
@@ -313,7 +314,10 @@ def render_knowledge_graph(
         gap_node_list = []
         if gap_highlight and gap_pairs:
             for pair in gap_pairs:
-                gap_node_list.extend([pair.get("concept_a"), pair.get("concept_b")])
+                if isinstance(pair, dict):
+                    gap_node_list.extend([pair.get("concept_a"), pair.get("concept_b")])
+                elif isinstance(pair, (list, tuple)) and len(pair) >= 2:
+                    gap_node_list.extend([pair[0], pair[1]])
             gap_node_list = [n for n in gap_node_list if n and filtered.has_node(n)]
 
         cache_key = (
