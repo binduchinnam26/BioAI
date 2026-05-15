@@ -409,7 +409,7 @@ class TopicModeler:
             return None
 
         docs = papers_df["abstract"].fillna("").tolist()
-        timestamps = papers_df["pub_year"].fillna(0).astype(int).tolist()
+        year_ints = papers_df["pub_year"].fillna(0).astype(int).tolist()
 
         if len(docs) != len(self._topics):
             logger.warning(
@@ -419,8 +419,19 @@ class TopicModeler:
             return None
 
         try:
+            # BERTopic internally calls pd.to_datetime() on timestamps.
+            # Passing raw integer years (e.g. 2025) makes it treat them as
+            # nanoseconds-since-epoch → 1970-01-01 00:00:00.000002025.
+            # Pass proper datetime objects instead so years are preserved.
+            import datetime as _dt
+            timestamps_dt = [
+                _dt.datetime(y, 6, 15) if 1900 <= y <= 2100
+                else _dt.datetime(2000, 6, 15)
+                for y in year_ints
+            ]
+
             tot = self._model.topics_over_time(
-                docs, timestamps, nr_bins=10, global_tuning=True
+                docs, timestamps_dt, nr_bins=10, global_tuning=True
             )
             # Normalise column name: BERTopic uses "Timestamp", fallback uses "Timestamp"
             if "Year" in tot.columns and "Timestamp" not in tot.columns:
