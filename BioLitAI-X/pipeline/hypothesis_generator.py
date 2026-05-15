@@ -136,7 +136,7 @@ class HypothesisGenerator:
         Initialise Gemini via the REST API (avoids grpc/cffi SDK issues).
 
         Reads API keys from environment in order:
-          GEMINI_API_KEY, GEMINI_API_KEY_2, GEMINI_API_KEY_3, …
+          GEMINI_API_KEY, GEMINI_API_KEY_2
 
         When a key hits its daily quota the app automatically rotates to the
         next one, so adding more free-tier keys (from different Google accounts)
@@ -147,7 +147,7 @@ class HypothesisGenerator:
         _placeholder = ("", "your_gemini_api_key_here")
         keys: List[str] = []
 
-        # Collect GEMINI_API_KEY, GEMINI_API_KEY_2, GEMINI_API_KEY_3, …
+        # Collect GEMINI_API_KEY and GEMINI_API_KEY_2
         primary = os.getenv("GEMINI_API_KEY", "")
         if primary.strip() not in _placeholder:
             keys.append(primary.strip())
@@ -165,10 +165,9 @@ class HypothesisGenerator:
                 "GEMINI_API_KEY not found in .env file.\n"
                 "Add your Google Gemini API key:\n"
                 "  GEMINI_API_KEY=your_key_here\n\n"
-                "For automatic key rotation (doubles/triples your daily quota),\n"
-                "add keys from additional Google accounts:\n"
-                "  GEMINI_API_KEY_2=second_key_here\n"
-                "  GEMINI_API_KEY_3=third_key_here\n\n"
+                "For automatic key rotation (doubles your daily quota),\n"
+                "add a key from a second Google account:\n"
+                "  GEMINI_API_KEY_2=second_key_here\n\n"
                 "Free keys: https://aistudio.google.com/app/apikey"
             )
 
