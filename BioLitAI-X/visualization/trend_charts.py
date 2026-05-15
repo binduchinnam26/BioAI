@@ -159,7 +159,14 @@ def render_topic_evolution(topics_over_time_df):
 
     # Normalise column names — BERTopic uses 'Timestamp' in some versions
     if "Timestamp" in df.columns and "Year" not in df.columns:
-        df["Year"] = pd.to_datetime(df["Timestamp"], errors="coerce").dt.year
+        ts = pd.to_numeric(df["Timestamp"], errors="coerce")
+        # If values are already plain years (1900–2200), use them directly.
+        # Passing raw integers to pd.to_datetime interprets them as nanoseconds
+        # → 1970, which is wrong.
+        if ts.notna().all() and ts.between(1900, 2200).all():
+            df["Year"] = ts.astype(int)
+        else:
+            df["Year"] = pd.to_datetime(df["Timestamp"], errors="coerce").dt.year
     if "Year" not in df.columns:
         st.info("Year column not found in topic evolution data.")
         return
