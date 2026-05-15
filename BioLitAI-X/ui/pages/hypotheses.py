@@ -136,11 +136,13 @@ def _run_generation(session_state, papers_df, gap_report, top_n: int):
                 unsafe_allow_html=True,
             )
 
+        query_used = session_state.get("current_query", "")
         hypotheses = generator.generate_batch_hypotheses(
             gap_report=gap_report,
             papers_df=papers_df,
             db_manager=db,
             embedder=embedder,
+            query_used=query_used,
             top_n=top_n,
             progress_callback=_progress_cb,
         )
@@ -148,13 +150,31 @@ def _run_generation(session_state, papers_df, gap_report, top_n: int):
         progress_ph.empty()
         status_ph.empty()
 
-        session_state["hypotheses"] = hypotheses
         if hypotheses:
+            session_state["hypotheses"] = hypotheses
             st.success(f"Generated {len(hypotheses)} hypotheses.")
+            st.rerun()
         else:
-            st.warning("No hypotheses were generated. Check your GEMINI_API_KEY.")
-
-        st.rerun()
+            # Count how many gaps actually had two concepts (eligible for generation)
+            eligible = sum(
+                1 for g in gap_report
+                if g.get("concept_a") and g.get("concept_b")
+                and g["concept_a"] != g.get("concept_b")
+            )
+            if eligible == 0:
+                st.warning(
+                    "All detected gaps are single-concept (temporal) gaps — "
+                    "they describe one entity with no direct pair to compare. "
+                    "The Gemini model needs two concepts to generate a hypothesis. "
+                    "Try running the pipeline on a larger corpus (increase Max Results) "
+                    "to detect more structural or cross-domain gaps."
+                )
+            else:
+                st.warning(
+                    f"No hypotheses were generated. "
+                    f"({eligible} eligible gap pairs found, but the Gemini API returned no results.) "
+                    "Check that your GEMINI_API_KEY is valid and not quota-exhausted."
+                )
 
     except EnvironmentError as exc:
         progress_ph.empty()

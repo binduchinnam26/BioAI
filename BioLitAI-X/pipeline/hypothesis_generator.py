@@ -341,12 +341,20 @@ class HypothesisGenerator:
         if self._model is None:
             raise RuntimeError("Call setup() before generate_batch_hypotheses().")
 
-        # Filter to gaps with two distinct concepts
+        # Filter to gaps with two distinct concepts (skips temporal gaps where concept_b is None)
         candidates = [
             g for g in gap_report
             if g.get("concept_a") and g.get("concept_b")
                and g["concept_a"] != g.get("concept_b")
-        ][:top_n]
+        ]
+        if not candidates:
+            logger.warning(
+                "generate_batch_hypotheses: all %d gaps are single-concept "
+                "(temporal) gaps with no concept_b — cannot generate hypotheses.",
+                len(gap_report),
+            )
+            return []
+        candidates = candidates[:top_n]
 
         hypotheses: List[Dict[str, Any]] = []
         total = len(candidates)
