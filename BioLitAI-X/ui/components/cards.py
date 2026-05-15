@@ -245,16 +245,14 @@ def render_paper_card(
             bar_color = "#F59E0B"
         else:
             bar_color = "#3B82F6"
-        sim_html = f"""
-        <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
-          <div style="flex:1;background:#1F2937;border-radius:4px;height:6px;">
-            <div style="width:{pct}%;background:{bar_color};border-radius:4px;height:100%;
-                       transition:width 400ms ease;"></div>
-          </div>
-          <span style="font-size:0.75rem;font-weight:700;color:{bar_color};
-                      white-space:nowrap;">{pct}% match</span>
-        </div>
-        """
+        sim_html = (
+            f'<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">'
+            f'<div style="flex:1;background:#1F2937;border-radius:4px;height:6px;">'
+            f'<div style="width:{pct}%;background:{bar_color};border-radius:4px;height:100%;"></div>'
+            f'</div>'
+            f'<span style="font-size:0.75rem;font-weight:700;color:{bar_color};white-space:nowrap;">'
+            f'{pct}% match</span></div>'
+        )
 
     # PMID and year badges
     badges = ""
@@ -273,30 +271,19 @@ def render_paper_card(
             f'{pub_year}</span>'
         )
 
-    html = f"""
-    <div style="
-      background:#111827;
-      border:1px solid #1F2937;
-      border-radius:10px;
-      padding:16px 20px;
-      margin-bottom:12px;
-      transition:border-color 150ms ease;
-    "
-    onmouseover="this.style.borderColor='#3B82F6';"
-    onmouseout="this.style.borderColor='#1F2937';"
-    >
-      {sim_html}
-      <div style="margin-bottom:6px;">{title_html}</div>
-      <div style="font-size:0.78rem;color:#9CA3AF;margin-bottom:8px;line-height:1.4;">
-        {author_str}
-        {f' &nbsp;|&nbsp; <em>{journal}</em>' if journal else ''}
-      </div>
-      <div style="font-size:0.82rem;color:#D1D5DB;line-height:1.6;margin-bottom:10px;">
-        {excerpt}
-      </div>
-      <div>{badges}</div>
-    </div>
-    """
+    journal_part = f' &nbsp;|&nbsp; <em>{journal}</em>' if journal else ''
+    html = (
+        f'<div style="background:#111827;border:1px solid #1F2937;border-radius:10px;'
+        f'padding:16px 20px;margin-bottom:12px;">'
+        f'{sim_html}'
+        f'<div style="margin-bottom:6px;">{title_html}</div>'
+        f'<div style="font-size:0.78rem;color:#9CA3AF;margin-bottom:8px;line-height:1.4;">'
+        f'{author_str}{journal_part}</div>'
+        f'<div style="font-size:0.82rem;color:#D1D5DB;line-height:1.6;margin-bottom:10px;">'
+        f'{excerpt}</div>'
+        f'<div>{badges}</div>'
+        f'</div>'
+    )
 
     st.markdown(html, unsafe_allow_html=True)
 
