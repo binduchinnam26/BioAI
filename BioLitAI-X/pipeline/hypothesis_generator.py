@@ -472,12 +472,19 @@ class HypothesisGenerator:
             + f"USER QUESTION: {user_message}"
         )
 
-        response_text = self._call_with_retry(grounded_prompt)
-        if not response_text:
+        response_text = self._call_with_retry(grounded_prompt, quick_fail=True)
+        if response_text == "__QUOTA_EXCEEDED__":
+            response_text = (
+                "**Gemini free-tier quota exceeded.** "
+                "The free tier allows only a limited number of requests per day "
+                "(typically 50 RPD for gemini-2.5-flash-lite). "
+                "Please wait until your quota resets (usually midnight Pacific Time) "
+                "or upgrade your API key at https://aistudio.google.com/app/apikey"
+            )
+        elif not response_text:
             response_text = (
                 "I was unable to generate a response at this time. "
-                "This may be due to API rate limits on the free tier. "
-                "Please wait a moment and try again."
+                "Please check your internet connection and try again."
             )
 
         return {
@@ -488,9 +495,13 @@ class HypothesisGenerator:
 
     # ── Internal helpers ──────────────────────────────────────────────────────
 
-    def _call_with_retry(self, prompt: str) -> Optional[str]:
+    def _call_with_retry(self, prompt: str, quick_fail: bool = False) -> Optional[str]:
         """
         Call Gemini REST API with throttling + exponential backoff.
+
+        quick_fail=True: return None immediately on quota errors (for interactive
+        chat) rather than waiting 60-120 s per retry.
+
         Returns the response text or None on permanent failure.
         """
         import requests as _req
@@ -532,6 +543,9 @@ class HypothesisGenerator:
             err = r.json().get("error", {})
             err_msg = err.get("message", "")
             if r.status_code == 429 or "resource_exhausted" in err_msg.lower():
+                if quick_fail:
+                    logger.warning("Gemini quota exceeded — failing fast (chat mode).")
+                    return "__QUOTA_EXCEEDED__"
                 logger.warning(
                     "Gemini quota exceeded (attempt %d/%d). Waiting %ds.",
                     attempt + 1, _MAX_RETRIES, backoff,
