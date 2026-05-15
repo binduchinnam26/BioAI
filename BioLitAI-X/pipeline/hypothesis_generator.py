@@ -209,10 +209,10 @@ class HypothesisGenerator:
             if pmid in seen_pmids:
                 return
             seen_pmids.add(pmid)
-            title = (row.get("title", "") if isinstance(row, dict)
-                     else getattr(row, "title", "")) or ""
-            abstract = (row.get("abstract", "") if isinstance(row, dict)
-                        else getattr(row, "abstract", "")) or ""
+            title = str((row.get("title", "") if isinstance(row, dict)
+                     else getattr(row, "title", "")) or "")
+            abstract = str((row.get("abstract", "") if isinstance(row, dict)
+                        else getattr(row, "abstract", "")) or "")
             snippet = abstract[:300].replace("\n", " ").strip()
             context_parts.append(
                 f"[PMID:{pmid} | {label}]\n"
@@ -360,43 +360,52 @@ class HypothesisGenerator:
         total = len(candidates)
 
         for i, gap in enumerate(candidates):
-            concept_a = gap["concept_a"]
-            concept_b = gap.get("concept_b", "")
+            try:
+                concept_a = str(gap.get("concept_a") or "")
+                concept_b = str(gap.get("concept_b") or "")
 
-            # Cache check — skip if already in DB
-            if db_manager is not None:
-                existing = _find_existing_hypothesis(
-                    db_manager, concept_a, concept_b, query_used
-                )
-                if existing:
-                    logger.info(
-                        "Hypothesis for %s/%s already in DB — skipping.",
-                        concept_a, concept_b,
-                    )
-                    hypotheses.append(existing)
-                    if progress_callback:
-                        progress_callback(i + 1, total, "cached")
-                    continue
-
-            logger.info(
-                "Generating hypothesis %d/%d: %s ↔ %s",
-                i + 1, total, concept_a, concept_b,
-            )
-
-            evidence = self.build_evidence_context(
-                gap, papers_df, embedder=embedder
-            )
-            hyp = self.generate_hypothesis(gap, evidence)
-
-            if hyp:
-                hyp["query_used"] = query_used
+                # Cache check — skip if already in DB
                 if db_manager is not None:
-                    hyp_id = db_manager.insert_hypothesis(hyp)
-                    hyp["id"] = hyp_id
-                hypotheses.append(hyp)
+                    existing = _find_existing_hypothesis(
+                        db_manager, concept_a, concept_b, query_used
+                    )
+                    if existing:
+                        logger.info(
+                            "Hypothesis for %s/%s already in DB — skipping.",
+                            concept_a, concept_b,
+                        )
+                        hypotheses.append(existing)
+                        if progress_callback:
+                            progress_callback(i + 1, total, "cached")
+                        continue
+
+                logger.info(
+                    "Generating hypothesis %d/%d: %s ↔ %s",
+                    i + 1, total, concept_a, concept_b,
+                )
+
+                evidence = self.build_evidence_context(
+                    gap, papers_df, embedder=embedder
+                )
+                hyp = self.generate_hypothesis(gap, evidence)
+
+                if hyp:
+                    hyp["query_used"] = query_used
+                    if db_manager is not None:
+                        hyp_id = db_manager.insert_hypothesis(hyp)
+                        hyp["id"] = hyp_id
+                    hypotheses.append(hyp)
+
+            except Exception as gap_exc:
+                import traceback as _tb
+                logger.error(
+                    "Gap %d/%d failed: %s\n%s",
+                    i + 1, total, gap_exc, _tb.format_exc()
+                )
+                # Continue processing remaining gaps
 
             if progress_callback:
-                progress_callback(i + 1, total, "generated" if hyp else "failed")
+                progress_callback(i + 1, total, "generated" if (len(hypotheses) > i) else "failed")
 
         hypotheses.sort(key=lambda h: h.get("confidence_score", 0.0), reverse=True)
         logger.info(
