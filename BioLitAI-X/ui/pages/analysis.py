@@ -160,10 +160,16 @@ def _render_topic_net_tab(session_state, papers_df):
 
     graph = session_state.get("topic_graph")
 
+    # If the pipeline didn't produce a usable graph, build one on-demand.
+    if graph is None or graph.number_of_nodes() == 0:
+        graph = _build_topic_graph(session_state, papers_df)
+        if graph is not None and graph.number_of_nodes() > 0:
+            session_state["topic_graph"] = graph
+
     if graph is None or graph.number_of_nodes() == 0:
         st.info(
-            "Topic network is not available. "
-            "Ensure BERTopic is installed and the pipeline has completed topic modelling."
+            "Topic network could not be generated for this corpus. "
+            "The abstracts may be too short or too similar to cluster."
         )
         return
 
@@ -172,6 +178,41 @@ def _render_topic_net_tab(session_state, papers_df):
         render_topic_network(graph)
     except Exception as exc:
         st.error(f"Could not render topic network: {exc}")
+
+
+def _build_topic_graph(session_state, papers_df):
+    """Build a topic network graph from cached results or by re-running topic modelling."""
+    try:
+        from pipeline.topic_modeler import TopicModeler
+        from pipeline.network_builder import NetworkBuilder
+        import pandas as pd
+
+        # Prefer already-computed topic results from the pipeline run
+        topic_results = session_state.get("topic_model_results")
+
+        if topic_results and topic_results.get("topic_info") and topic_results.get("topics"):
+            topic_info = topic_results["topic_info"]
+            topics = topic_results["topics"]
+        else:
+            # Re-run topic modelling directly from papers_df
+            abstracts = papers_df["abstract"].fillna("").tolist()
+            modeler = TopicModeler()
+            topics, _ = modeler.fit_transform(abstracts)
+            topic_info = modeler.get_topic_summary()
+
+        pmids = papers_df["pmid"].astype(str).tolist()
+        paper_assignments = [
+            {"pmid": pmids[i], "topic_id": int(topics[i])}
+            for i in range(min(len(pmids), len(topics)))
+        ]
+
+        builder = NetworkBuilder()
+        return builder.build_topic_network({
+            "topic_summary": topic_info,
+            "paper_assignments": paper_assignments,
+        })
+    except Exception:
+        return None
 
 
 def _render_network_controls(title: str, legend: str):
