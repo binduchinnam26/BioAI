@@ -94,53 +94,104 @@ class HypothesisGenerator:
     """
 
     def __init__(self):
-        self._api_key: str = ""
+        self._api_keys: List[str] = []   # all keys in priority order
+        self._key_index: int = 0          # index of currently active key
+        self._exhausted: set = set()      # indices of quota-exhausted keys
         self._model_name: str = ""
         self._gen_config: dict = {}
         self._call_delay: float = _FLASH_DELAY
         self._last_call_time: float = 0.0
+
+    @property
+    def _api_key(self) -> str:
+        """Active API key (first non-exhausted key, or last key if all exhausted)."""
+        for i in range(self._key_index, len(self._api_keys)):
+            if i not in self._exhausted:
+                self._key_index = i
+                return self._api_keys[i]
+        # All keys exhausted — return the last one so callers get a proper 429
+        return self._api_keys[-1] if self._api_keys else ""
+
+    def _rotate_key(self) -> bool:
+        """
+        Mark the current key as exhausted and advance to the next available one.
+        Returns True if a fresh key is available, False if all are exhausted.
+        """
+        self._exhausted.add(self._key_index)
+        for i, key in enumerate(self._api_keys):
+            if i not in self._exhausted:
+                self._key_index = i
+                logger.info(
+                    "API key %d/%d exhausted — rotating to key %d.",
+                    list(self._exhausted)[-1] + 1, len(self._api_keys), i + 1,
+                )
+                return True
+        logger.warning("All %d API key(s) are quota-exhausted.", len(self._api_keys))
+        return False
 
     # ── Setup ─────────────────────────────────────────────────────────────────
 
     def setup(self):
         """
         Initialise Gemini via the REST API (avoids grpc/cffi SDK issues).
-        Reads GEMINI_API_KEY and GEMINI_MODEL from environment / config.
-        Raises a descriptive EnvironmentError if the key is absent.
+
+        Reads API keys from environment in order:
+          GEMINI_API_KEY, GEMINI_API_KEY_2, GEMINI_API_KEY_3, …
+
+        When a key hits its daily quota the app automatically rotates to the
+        next one, so adding more free-tier keys (from different Google accounts)
+        multiplies the daily request budget.
+
+        Raises EnvironmentError if no valid key is found.
         """
-        api_key = os.getenv("GEMINI_API_KEY")
-        if not api_key or api_key.strip() in ("", "your_gemini_api_key_here"):
+        _placeholder = ("", "your_gemini_api_key_here")
+        keys: List[str] = []
+
+        # Collect GEMINI_API_KEY, GEMINI_API_KEY_2, GEMINI_API_KEY_3, …
+        primary = os.getenv("GEMINI_API_KEY", "")
+        if primary.strip() not in _placeholder:
+            keys.append(primary.strip())
+
+        idx = 2
+        while True:
+            k = os.getenv(f"GEMINI_API_KEY_{idx}", "")
+            if not k or k.strip() in _placeholder:
+                break
+            keys.append(k.strip())
+            idx += 1
+
+        if not keys:
             raise EnvironmentError(
-                "GEMINI_API_KEY not found in .env file. "
-                "Please add your Google Gemini API key as:\n"
-                "  GEMINI_API_KEY=your_key_here\n"
-                "in the .env file before running Phase 5.\n\n"
-                "Free-tier keys are available at https://aistudio.google.com/app/apikey\n"
-                "The system defaults to gemini-2.5-flash-lite which has a generous "
-                "free quota."
+                "GEMINI_API_KEY not found in .env file.\n"
+                "Add your Google Gemini API key:\n"
+                "  GEMINI_API_KEY=your_key_here\n\n"
+                "For automatic key rotation (doubles/triples your daily quota),\n"
+                "add keys from additional Google accounts:\n"
+                "  GEMINI_API_KEY_2=second_key_here\n"
+                "  GEMINI_API_KEY_3=third_key_here\n\n"
+                "Free keys: https://aistudio.google.com/app/apikey"
             )
 
         from config import GEMINI_MODEL, GEMINI_TEMPERATURE, GEMINI_TOP_P, \
             GEMINI_TOP_K, GEMINI_MAX_OUTPUT_TOKENS
 
-        # Use updated model name; remap deprecated 1.5 models
+        # Remap deprecated 1.5 model names
         requested_model = os.getenv("GEMINI_MODEL", GEMINI_MODEL)
         _deprecated = {
-            "gemini-1.5-flash": "gemini-2.5-flash-lite",
+            "gemini-1.5-flash":        "gemini-2.5-flash-lite",
             "gemini-1.5-flash-latest": "gemini-2.5-flash-lite",
-            "gemini-1.5-pro": "gemini-2.5-pro",
-            "gemini-1.5-pro-latest": "gemini-2.5-pro",
-            "gemini-pro": "gemini-2.5-flash-lite",
+            "gemini-1.5-pro":          "gemini-2.5-pro",
+            "gemini-1.5-pro-latest":   "gemini-2.5-pro",
+            "gemini-pro":              "gemini-2.5-flash-lite",
         }
         if requested_model in _deprecated:
             new_name = _deprecated[requested_model]
-            logger.warning(
-                "Model '%s' is deprecated — using '%s' instead.",
-                requested_model, new_name,
-            )
+            logger.warning("Model '%s' deprecated — using '%s'.", requested_model, new_name)
             requested_model = new_name
 
-        self._api_key = api_key
+        self._api_keys = keys
+        self._key_index = 0
+        self._exhausted = set()
         self._model_name = requested_model
         self._call_delay = _get_call_delay(self._model_name)
         self._gen_config = {
@@ -150,20 +201,20 @@ class HypothesisGenerator:
             "maxOutputTokens": GEMINI_MAX_OUTPUT_TOKENS,
         }
 
-        # Verify the model is reachable with a lightweight probe
+        # Verify at least the first key can reach the model
         import requests as _req
         test_url = _GEMINI_REST_URL.format(model=self._model_name)
         try:
             r = _req.post(
                 test_url,
-                params={"key": self._api_key},
+                params={"key": self._api_keys[0]},
                 json={"contents": [{"parts": [{"text": "ping"}]}]},
                 timeout=20,
             )
             if r.status_code == 404:
                 raise EnvironmentError(
-                    f"Gemini model '{self._model_name}' is not available on this API key. "
-                    "Try setting GEMINI_MODEL=gemini-2.5-flash-lite in your .env file."
+                    f"Gemini model '{self._model_name}' not found. "
+                    "Set GEMINI_MODEL=gemini-2.5-flash-lite in your .env file."
                 )
             if r.status_code not in (200, 429):
                 err = r.json().get("error", {})
@@ -173,7 +224,10 @@ class HypothesisGenerator:
         except _req.exceptions.RequestException as exc:
             raise EnvironmentError(f"Cannot reach Gemini API: {exc}") from exc
 
-        logger.info("Gemini REST API ready — model '%s'.", self._model_name)
+        logger.info(
+            "Gemini REST API ready — model '%s', %d key(s) loaded.",
+            self._model_name, len(self._api_keys),
+        )
 
     # ── Rate-limiting ─────────────────────────────────────────────────────────
 
@@ -543,11 +597,16 @@ class HypothesisGenerator:
             err = r.json().get("error", {})
             err_msg = err.get("message", "")
             if r.status_code == 429 or "resource_exhausted" in err_msg.lower():
+                # Try rotating to the next key before waiting
+                if self._rotate_key():
+                    logger.info("Rotated to next API key — retrying immediately.")
+                    continue   # retry the loop immediately with the new key
+                # All keys exhausted
                 if quick_fail:
-                    logger.warning("Gemini quota exceeded — failing fast (chat mode).")
+                    logger.warning("All API keys quota-exhausted — failing fast.")
                     return "__QUOTA_EXCEEDED__"
                 logger.warning(
-                    "Gemini quota exceeded (attempt %d/%d). Waiting %ds.",
+                    "All keys exhausted (attempt %d/%d). Waiting %ds.",
                     attempt + 1, _MAX_RETRIES, backoff,
                 )
                 time.sleep(backoff)
