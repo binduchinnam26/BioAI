@@ -57,7 +57,7 @@ SEMANTIC_SIMILARITY_THRESHOLD = 0.85
 SEMANTIC_SEARCH_TOP_K = 10
 
 # ── BERTopic ──────────────────────────────────────────────────────────────────
-BERTOPIC_MIN_TOPIC_SIZE = 10
+BERTOPIC_MIN_TOPIC_SIZE = 5
 BERTOPIC_NR_TOPICS = "auto"
 
 # ── Knowledge graph ───────────────────────────────────────────────────────────

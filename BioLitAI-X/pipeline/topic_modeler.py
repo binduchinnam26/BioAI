@@ -219,7 +219,10 @@ class TopicModeler:
 
     # ── Model initialisation ──────────────────────────────────────────────────
 
-    def _init_model(self):
+    def _init_model(self, n_docs: int = 100):
+        # Scale min_cluster_size to corpus — never less than 3, never more than configured max
+        effective_min_size = max(3, min(BERTOPIC_MIN_TOPIC_SIZE, n_docs // 10))
+
         try:
             from bertopic import BERTopic
             from umap import UMAP
@@ -234,7 +237,7 @@ class TopicModeler:
             n_topics = 10 if nr_topics_cfg == "auto" else int(nr_topics_cfg)
             self._model = _FallbackTopicModel(
                 n_topics=n_topics,
-                min_topic_size=BERTOPIC_MIN_TOPIC_SIZE,
+                min_topic_size=effective_min_size,
             )
             self._use_fallback = True
             return
@@ -247,15 +250,17 @@ class TopicModeler:
             max_features=10_000,
         )
 
+        # Clamp n_neighbors so UMAP never asks for more neighbours than docs available
+        n_neighbors = min(15, max(2, n_docs - 1))
         umap_model = UMAP(
-            n_neighbors=15,
-            n_components=5,
+            n_neighbors=n_neighbors,
+            n_components=min(5, n_docs - 1),
             min_dist=0.0,
             metric="cosine",
             random_state=42,
         )
         hdbscan_model = HDBSCAN(
-            min_cluster_size=BERTOPIC_MIN_TOPIC_SIZE,
+            min_cluster_size=effective_min_size,
             metric="euclidean",
             cluster_selection_method="eom",
             prediction_data=True,
@@ -293,7 +298,7 @@ class TopicModeler:
             logger.warning("fit_transform called with empty abstract list")
             return [], np.array([])
 
-        self._init_model()
+        self._init_model(len(abstracts))
 
         docs = [a if (a and a.strip()) else "[NO ABSTRACT]" for a in abstracts]
 

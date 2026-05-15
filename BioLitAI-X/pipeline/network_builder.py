@@ -294,7 +294,7 @@ class NetworkBuilder:
             if tid >= 0 and G.has_node(tid):
                 paper_topic[asgn["pmid"]].append(tid)
 
-        # Connect topics that share papers
+        # Connect topics that share papers (works when probabilities give multi-topic assignments)
         shared: Dict[Tuple[int, int], int] = defaultdict(int)
         for pmid, topics in paper_topic.items():
             for a, b in combinations(sorted(set(topics)), 2):
@@ -302,6 +302,27 @@ class NetworkBuilder:
 
         for (a, b), w in shared.items():
             G.add_edge(a, b, weight=w)
+
+        # Hard-clustering (one topic per paper) produces no shared-paper edges.
+        # Fall back to keyword-overlap similarity so the network is still connected.
+        if G.number_of_edges() == 0 and G.number_of_nodes() >= 2:
+            topic_word_sets: Dict[int, set] = {}
+            for node, data in G.nodes(data=True):
+                raw_words = data.get("top_words", [])
+                # top_words may be [(word, score), ...] or [word, ...]
+                words = set()
+                for item in raw_words:
+                    w = item[0] if isinstance(item, (list, tuple)) else item
+                    if isinstance(w, str) and len(w) > 1:
+                        words.add(w.lower())
+                topic_word_sets[node] = words
+
+            for (tid_a, words_a), (tid_b, words_b) in combinations(
+                topic_word_sets.items(), 2
+            ):
+                overlap = len(words_a & words_b)
+                if overlap > 0:
+                    G.add_edge(tid_a, tid_b, weight=overlap)
 
         if G.number_of_nodes() == 0:
             return G
