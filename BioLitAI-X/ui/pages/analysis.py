@@ -160,18 +160,14 @@ def _render_topic_net_tab(session_state, papers_df):
 
     graph = session_state.get("topic_graph")
 
-    # If the pipeline didn't produce a usable graph, build one on-demand.
     if graph is None or graph.number_of_nodes() == 0:
-        graph = _build_topic_graph(session_state, papers_df)
+        with st.spinner("Building topic network…"):
+            graph, err = _build_topic_graph_safe(session_state, papers_df)
         if graph is not None and graph.number_of_nodes() > 0:
             session_state["topic_graph"] = graph
-
-    if graph is None or graph.number_of_nodes() == 0:
-        st.info(
-            "Topic network could not be generated for this corpus. "
-            "The abstracts may be too short or too similar to cluster."
-        )
-        return
+        else:
+            st.error(f"Topic network could not be built: {err}")
+            return
 
     try:
         from visualization.network_viz import render_topic_network
@@ -180,25 +176,52 @@ def _render_topic_net_tab(session_state, papers_df):
         st.error(f"Could not render topic network: {exc}")
 
 
-def _build_topic_graph(session_state, papers_df):
-    """Build a topic network graph from cached results or by re-running topic modelling."""
-    try:
-        from pipeline.topic_modeler import TopicModeler
-        from pipeline.network_builder import NetworkBuilder
-        import pandas as pd
+def _build_topic_graph_safe(session_state, papers_df):
+    """
+    Build a topic NetworkX graph. Returns (graph, None) on success,
+    (None, error_string) on failure. Never raises.
+    """
+    import importlib.util, pathlib, sys
 
-        # Prefer already-computed topic results from the pipeline run
+    base = pathlib.Path(__file__).parent.parent.parent / "BioLitAI-X"
+    if not base.exists():
+        base = pathlib.Path(__file__).parent.parent  # fallback: project root
+
+    def _direct_import(module_name, rel_path):
+        """Import a single .py file without touching the package __init__."""
+        if module_name in sys.modules:
+            return sys.modules[module_name]
+        full = base / rel_path
+        spec = importlib.util.spec_from_file_location(module_name, full)
+        mod = importlib.util.module_from_spec(spec)
+        sys.modules[module_name] = mod
+        spec.loader.exec_module(mod)
+        return mod
+
+    try:
+        tm_mod = _direct_import("_tm_standalone", "pipeline/topic_modeler.py")
+        nb_mod = _direct_import("_nb_standalone", "pipeline/network_builder.py")
+        TopicModeler = tm_mod.TopicModeler
+        NetworkBuilder = nb_mod.NetworkBuilder
+    except Exception as e:
+        return None, f"import error: {e}"
+
+    try:
         topic_results = session_state.get("topic_model_results")
 
-        if topic_results and topic_results.get("topic_info") and topic_results.get("topics"):
+        if (topic_results
+                and topic_results.get("topic_info")
+                and topic_results.get("topics")):
             topic_info = topic_results["topic_info"]
             topics = topic_results["topics"]
         else:
-            # Re-run topic modelling directly from papers_df
             abstracts = papers_df["abstract"].fillna("").tolist()
             modeler = TopicModeler()
             topics, _ = modeler.fit_transform(abstracts)
             topic_info = modeler.get_topic_summary()
+
+        if not topic_info:
+            return None, "topic modelling returned no topics (all documents assigned to outlier cluster)"
 
         pmids = papers_df["pmid"].astype(str).tolist()
         paper_assignments = [
@@ -206,13 +229,17 @@ def _build_topic_graph(session_state, papers_df):
             for i in range(min(len(pmids), len(topics)))
         ]
 
-        builder = NetworkBuilder()
-        return builder.build_topic_network({
+        graph = NetworkBuilder().build_topic_network({
             "topic_summary": topic_info,
             "paper_assignments": paper_assignments,
         })
-    except Exception:
-        return None
+        if graph.number_of_nodes() == 0:
+            return None, "network builder produced an empty graph"
+        return graph, None
+
+    except Exception as e:
+        import traceback
+        return None, traceback.format_exc(limit=5)
 
 
 def _render_network_controls(title: str, legend: str):
