@@ -326,12 +326,27 @@ class TopicModeler:
                 )
             else:
                 self._topics, self._probs = self._model.fit_transform(docs)
-        except Exception as exc:
-            logger.error("Topic model fit_transform failed: %s", exc)
-            self._topics = [-1] * len(docs)
-            self._probs = np.zeros((len(docs), 1))
 
-        self._topic_info = self._model.get_topic_info()
+            self._topic_info = self._model.get_topic_info()
+
+        except Exception as exc:
+            # BERTopic may fail at runtime (e.g. no network to download embedding
+            # model, UMAP/HDBSCAN convergence failure on tiny corpus, etc.).
+            # Always fall back to TF-IDF + KMeans so the pipeline keeps running.
+            logger.warning(
+                "Topic model failed (%s) — switching to TF-IDF+KMeans fallback.", exc
+            )
+            n_topics_cfg = BERTOPIC_NR_TOPICS
+            n_topics = 10 if n_topics_cfg == "auto" else int(n_topics_cfg)
+            fallback = _FallbackTopicModel(
+                n_topics=n_topics,
+                min_topic_size=max(3, len(docs) // 20),
+            )
+            self._topics, self._probs = fallback.fit_transform(docs)
+            self._model = fallback
+            self._use_fallback = True
+            self._topic_info = fallback.get_topic_info()
+
         n_topics = len(self._topic_info[self._topic_info["Topic"] >= 0])
         logger.info(
             "Topic modelling complete: %d topics discovered%s",
