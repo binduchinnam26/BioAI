@@ -64,21 +64,33 @@ class _FallbackTopicModel:
 
         combined_stops = frozenset(ENGLISH_STOP_WORDS) | frozenset(_BIOMEDICAL_STOPWORDS)
 
-        vectorizer = TfidfVectorizer(
-            stop_words=list(combined_stops),
-            min_df=2,
-            max_df=0.85,
-            ngram_range=(1, 2),
-            max_features=10_000,
-        )
-
         n_docs = len(docs)
         n_clusters = min(self._n_topics, max(2, n_docs // max(self._min_topic_size, 1)))
 
-        try:
-            X = vectorizer.fit_transform(docs)
-        except ValueError:
-            # All documents empty after stopword removal
+        # Try progressively more permissive vectorizer settings.
+        # max_df is intentionally absent: focused corpora (single-topic queries)
+        # have domain terms in nearly every document, so any max_df cap would
+        # wipe out the entire vocabulary and produce all-outlier assignments.
+        vectorizer_configs = [
+            dict(stop_words=list(combined_stops), min_df=2, ngram_range=(1, 2), max_features=10_000),
+            dict(stop_words=list(combined_stops), min_df=1, ngram_range=(1, 2), max_features=10_000),
+            dict(stop_words="english", min_df=1, ngram_range=(1, 1), max_features=5_000),
+            dict(min_df=1, ngram_range=(1, 1), max_features=2_000, analyzer="char_wb", strip_accents="unicode"),
+        ]
+
+        X = None
+        vectorizer = None
+        for cfg in vectorizer_configs:
+            try:
+                v = TfidfVectorizer(**cfg)
+                X = v.fit_transform(docs)
+                if X.shape[1] > 0:
+                    vectorizer = v
+                    break
+            except ValueError:
+                continue
+
+        if X is None or vectorizer is None or X.shape[1] == 0:
             topics = [-1] * n_docs
             probs = np.zeros((n_docs, 1))
             self._build_empty_topic_info()
