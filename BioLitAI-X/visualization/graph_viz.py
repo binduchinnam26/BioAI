@@ -357,14 +357,6 @@ def _build_kg_html(
         raise ImportError("pyvis is not installed. Run: pip install pyvis") from exc
 
     weights = {n: graph.nodes[n].get("weight", 1) for n in graph.nodes()}
-    w_min = min(weights.values(), default=1)
-    w_max = max(weights.values(), default=1)
-
-    w_list = list(weights.values())
-    p25 = percentile(w_list, 25) if w_list else 1.0
-    p50 = percentile(w_list, 50) if w_list else 1.0
-    p75 = percentile(w_list, 75) if w_list else 1.0
-    p90 = percentile(w_list, 90) if w_list else 1.0
 
     edge_weights = {}
     for u, v, data in graph.edges(data=True):
@@ -388,20 +380,17 @@ def _build_kg_html(
         etype = data.get("entity_type", "UNKNOWN")
         fill_hex = ENTITY_TYPE_COLORS.get(etype, "#9CA3AF")
         w = weights.get(node, 1)
-        size = scale_node_size(w, w_min, w_max, NODE_SIZE_MIN, NODE_SIZE_MAX)
         label = truncate(str(node), 20)
-        font = _label_font(w, p25, p50, p75, p90)
         tooltip = _kg_node_tooltip(node, data, graph)
-        # Plain hex — avoids vis.js color-dict parse failures that produce
-        # the default yellow highlight ring.
+        # value= (not size=) activates vis.js scaling.label so font size
+        # scales proportionally — same mechanism as VOSviewer.
         net.add_node(
             str(node),
             label=label,
             title=tooltip,
-            size=size,
+            value=float(w),
             shape="dot",
             color=fill_hex,
-            font=font,
         )
 
     seen_edges = set()
@@ -415,11 +404,8 @@ def _build_kg_html(
         fill_hex = ENTITY_TYPE_COLORS.get(etype_u, "#9CA3AF")
         w = edge_weights.get((u, v), 1)
         width = scale_edge_width(w, ew_min, ew_max, EDGE_WIDTH_MIN, EDGE_WIDTH_MAX)
-        edge_color = {
-            "color": hex_to_rgba(fill_hex, 0.40),
-            "highlight": hex_to_rgba(fill_hex, 1.0),
-            "hover": hex_to_rgba(fill_hex, 0.80),
-        }
+        # Plain rgba string — avoids dict serialisation issues
+        edge_color = hex_to_rgba(fill_hex, 0.45)
         rel_type = data.get("relationship_type", "")
         pmids = data.get("evidence_pmids", [])
         pmid_str = ", ".join(str(p) for p in pmids[:3])
