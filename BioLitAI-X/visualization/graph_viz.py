@@ -387,27 +387,20 @@ def _build_kg_html(
         data = graph.nodes[node]
         etype = data.get("entity_type", "UNKNOWN")
         fill_hex = ENTITY_TYPE_COLORS.get(etype, "#9CA3AF")
-        hover_hex = lighten_hex(fill_hex, 0.15)
         w = weights.get(node, 1)
         size = scale_node_size(w, w_min, w_max, NODE_SIZE_MIN, NODE_SIZE_MAX)
         label = truncate(str(node), 20)
         font = _label_font(w, p25, p50, p75, p90)
         tooltip = _kg_node_tooltip(node, data, graph)
-        node_color = {
-            "background": fill_hex,
-            "border": fill_hex,
-            "highlight": {"background": hover_hex, "border": hover_hex},
-            "hover": {"background": hover_hex, "border": hover_hex},
-        }
+        # Plain hex — avoids vis.js color-dict parse failures that produce
+        # the default yellow highlight ring.
         net.add_node(
             str(node),
             label=label,
             title=tooltip,
             size=size,
             shape="dot",
-            color=node_color,
-            borderWidth=0,
-            borderWidthSelected=0,
+            color=fill_hex,
             font=font,
         )
 
