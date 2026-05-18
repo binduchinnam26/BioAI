@@ -16,6 +16,9 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import networkx as nx
 
+# Bump this whenever visualization styling changes to invalidate cached HTML.
+_VIZ_VERSION = "v4"
+
 from config import (
     CANVAS_BG,
     COMMUNITY_COLORS,
@@ -466,7 +469,7 @@ def render_coauthorship_network(
     filtered = _filter_graph(graph, min_link, min_size, sel_comms, search)
 
     cache_key = (
-        f"_coauth_html_{key_prefix}_{min_link}_{min_size}_"
+        f"_coauth_html_{_VIZ_VERSION}_{key_prefix}_{min_link}_{min_size}_"
         f"{','.join(map(str, sel_comms))}_{search}_{freeze}"
     )
     if cache_key not in st.session_state or st.session_state[cache_key] is None:
@@ -625,7 +628,7 @@ def render_keyword_network(
     filtered = _filter_graph(graph, min_link, min_size, sel_comms, search)
 
     cache_key = (
-        f"_kw_html_{key_prefix}_{min_link}_{min_size}_"
+        f"_kw_html_{_VIZ_VERSION}_{key_prefix}_{min_link}_{min_size}_"
         f"{','.join(map(str, sel_comms))}_{search}_{freeze}"
     )
     if cache_key not in st.session_state:
@@ -770,7 +773,7 @@ def render_topic_network(
     filtered = _filter_graph(graph, min_link, min_size, sel_comms, search)
 
     cache_key = (
-        f"_topic_html_{key_prefix}_{min_link}_{min_size}_"
+        f"_topic_html_{_VIZ_VERSION}_{key_prefix}_{min_link}_{min_size}_"
         f"{','.join(map(str, sel_comms))}_{search}_{freeze}_{year_filter}"
     )
     if cache_key not in st.session_state:

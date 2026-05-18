@@ -42,6 +42,7 @@ from visualization.network_viz import (
     _post_process_html,
     _default_edge_tooltip,
     _label_font,
+    _VIZ_VERSION,
 )
 
 # ── Pulse animation for gap nodes ─────────────────────────────────────────────
@@ -321,7 +322,7 @@ def render_knowledge_graph(
             gap_node_list = [n for n in gap_node_list if n and filtered.has_node(n)]
 
         cache_key = (
-            f"_kg_html_{key_prefix}_{','.join(sorted(selected_etypes))}_"
+            f"_kg_html_{_VIZ_VERSION}_{key_prefix}_{','.join(sorted(selected_etypes))}_"
             f"{','.join(sorted(selected_rels))}_{entity_search}_"
             f"{evidence_threshold}_{gap_highlight}"
         )
