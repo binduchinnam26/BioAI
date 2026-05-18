@@ -17,7 +17,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import networkx as nx
 
 # Bump this whenever visualization styling changes to invalidate cached HTML.
-_VIZ_VERSION = "v16"
+_VIZ_VERSION = "v17"
 
 from config import (
     CANVAS_BG,
@@ -65,16 +65,19 @@ def get_physics_options(
             "enabled": True,
             "solver": "forceAtlas2Based",
             "forceAtlas2Based": {
-                # Negative = repulsion strength. Range [-300, -0.5].
-                # -150 separates communities while keeping graph on-screen.
-                "gravitationalConstant": -150,
-                "centralGravity": 0.008,
-                "springLength": 120,
-                "springConstant": 0.08,
-                "damping": 0.35,
-                "avoidOverlap": 0,
+                # Strong repulsion (-400) spreads nodes within each cluster
+                # so they don't pack into tight balls visible at fit-to-screen.
+                # springLength=220 keeps cluster members further apart;
+                # springConstant=0.04 weakens the clustering pull.
+                # avoidOverlap=0.5 adds size-proportional breathing room.
+                "gravitationalConstant": -400,
+                "centralGravity": 0.005,
+                "springLength": 220,
+                "springConstant": 0.04,
+                "damping": 0.4,
+                "avoidOverlap": 0.5,
             },
-            "maxVelocity": 50,
+            "maxVelocity": 80,
             "minVelocity": 0.5,
             "stabilization": {
                 "enabled": True,
@@ -82,7 +85,7 @@ def get_physics_options(
                 "updateInterval": 25,
                 "fit": True,
             },
-            "timestep": 0.35,
+            "timestep": 0.3,
         }
     else:
         if node_count < 50:
@@ -674,9 +677,10 @@ def render_coauthorship_network(
         if freeze:
             net.toggle_physics(False)
         html = _pyvis_to_html(net, filtered.number_of_nodes())
-        # Coauth-specific zoom clamp: keep scale between 0.50 and 0.80.
-        # Upper bound prevents a dense cluster from zooming into its own
-        # centre (which was making all labels visible at once).
+        # Coauth zoom: only cap the upper end (prevents tiny graphs zooming in
+        # past 0.85). For large graphs, let network.fit() choose the zoom so
+        # the full spread is visible rather than forcing a minimum that crops
+        # the layout into the dense center.
         html = html.replace(
             "  var scale = network.getScale();\n"
             "  if (scale < 0.45) {\n"
@@ -686,8 +690,7 @@ def render_coauthorship_network(
             "    });\n"
             "  }",
             "  var scale = network.getScale();\n"
-            "  var tgt = Math.min(Math.max(scale, 0.50), 0.80);\n"
-            "  if (tgt !== scale) { network.moveTo({ scale: tgt, animation: false }); }",
+            "  if (scale > 0.85) { network.moveTo({ scale: 0.85, animation: false }); }",
         )
         st.session_state[cache_key] = html
     else:
