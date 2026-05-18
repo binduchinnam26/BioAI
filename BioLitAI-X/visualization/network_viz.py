@@ -17,7 +17,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import networkx as nx
 
 # Bump this whenever visualization styling changes to invalidate cached HTML.
-_VIZ_VERSION = "v10"
+_VIZ_VERSION = "v11"
 
 from config import (
     CANVAS_BG,
@@ -42,11 +42,17 @@ from utils.helpers import (
 
 # ── Physics options ───────────────────────────────────────────────────────────
 
-def get_physics_options(node_count: int, navigation_buttons: bool = False) -> Dict:
+def get_physics_options(
+    node_count: int,
+    navigation_buttons: bool = False,
+    layout_spread: bool = False,
+) -> Dict:
     """
     VOSviewer-faithful physics: low central gravity lets communities
     separate; longer springs spread nodes out so labels have room.
     node.value drives both circle size and label size via scaling.
+    layout_spread=True uses much lower central gravity so nodes fan out
+    instead of collapsing to the canvas centre.
     """
     if node_count < 50:
         grav = -4000
@@ -60,6 +66,11 @@ def get_physics_options(node_count: int, navigation_buttons: bool = False) -> Di
         grav = -6000
         spring = 130
         central = 0.10
+
+    if layout_spread:
+        # Pull nodes apart: weaker central gravity, longer springs
+        central = 0.02
+        spring = max(spring, 200)
 
     return {
         "physics": {
@@ -381,6 +392,7 @@ def _build_pyvis_network(
     shape_fn=None,
     smooth_edges: bool = False,
     navigation_buttons: bool = False,
+    layout_spread: bool = False,
 ) -> Any:
     """
     Build a PyVis Network object from a NetworkX graph with full
@@ -454,7 +466,9 @@ def _build_pyvis_network(
         )
 
     physics_opts = get_physics_options(
-        graph.number_of_nodes(), navigation_buttons=navigation_buttons
+        graph.number_of_nodes(),
+        navigation_buttons=navigation_buttons,
+        layout_spread=layout_spread,
     )
     net.set_options(json.dumps(physics_opts))
     return net
@@ -479,14 +493,45 @@ def _default_edge_tooltip(u, v, data) -> str:
 _COAUTH_GREY = "#C0C0C0"
 
 
-def _compute_cross_cluster_nodes(graph: nx.Graph) -> set:
-    """Return node IDs that have at least one edge crossing cluster boundaries."""
+def _compute_colored_nodes_coauth(graph: nx.Graph) -> set:
+    """
+    Return nodes that should be shown in color for the coauth network.
+
+    Stage 1 – cross-cluster: nodes with at least one edge to a *different*
+    Louvain community are colored; pure within-cluster nodes are grey.
+    This faithfully replicates the VOSviewer coloring rule.
+
+    Stage 2 fallback – connected-component size: when Louvain collapses all
+    connected nodes into one giant community (common on small datasets), there
+    are zero cross-cluster edges and Stage 1 gives all-grey. In that case we
+    fall back to coloring every node whose connected component has ≥ 3 members,
+    leaving only isolated singletons and pairs in grey.
+    """
+    if graph.number_of_nodes() == 0:
+        return set()
+
+    # Stage 1: cross-cluster edges
     cross: set = set()
     for u, v in graph.edges():
-        if graph.nodes[u].get("community_id", 0) != graph.nodes[v].get("community_id", 0):
+        cid_u = graph.nodes[u].get("community_id", -1)
+        cid_v = graph.nodes[v].get("community_id", -1)
+        if cid_u != cid_v:
             cross.add(u)
             cross.add(v)
-    return cross
+
+    # Use cross-cluster result only when it gives a meaningful fraction of nodes
+    if len(cross) >= max(3, int(0.05 * graph.number_of_nodes())):
+        return cross
+
+    # Stage 2 fallback: component size ≥ 3
+    colored: set = set()
+    for comp in nx.connected_components(graph):
+        if len(comp) >= 3:
+            colored.update(comp)
+    if not colored:
+        # Always color at least the largest component
+        colored.update(max(nx.connected_components(graph), key=len))
+    return colored
 
 
 def render_coauthorship_network(
@@ -534,12 +579,13 @@ def render_coauthorship_network(
         node_weights = {n: filtered.nodes[n].get("weight", 1)
                         for n in filtered.nodes()}
 
-        # VOSviewer coloring: authors with cross-cluster connections keep their
-        # cluster color; within-cluster-only authors are rendered in grey.
-        cross_cluster = _compute_cross_cluster_nodes(filtered)
+        # VOSviewer coloring: "bridge" authors (or main-component members when
+        # cross-cluster detection yields too few) keep their cluster color;
+        # isolated/peripheral authors are rendered in grey.
+        colored_nodes = _compute_colored_nodes_coauth(filtered)
         viz_graph = filtered.copy()
         for node in viz_graph.nodes():
-            if node not in cross_cluster:
+            if node not in colored_nodes:
                 viz_graph.nodes[node]["color_hex"] = _COAUTH_GREY
                 viz_graph.nodes[node]["font_color"] = "#999999"
 
@@ -579,11 +625,13 @@ def render_coauthorship_network(
         net = _build_pyvis_network(
             viz_graph, node_sizes, edge_widths, node_weights,
             label_fn, tooltip_fn, _default_edge_tooltip,
-            smooth_edges=True, navigation_buttons=True,
+            smooth_edges=True, navigation_buttons=True, layout_spread=True,
         )
         if freeze:
             net.toggle_physics(False)
         html = _pyvis_to_html(net, filtered.number_of_nodes())
+        # Coauth-specific: increase minimum zoom so nodes/labels stay readable
+        html = html.replace("if (scale < 0.45)", "if (scale < 0.55)")
         st.session_state[cache_key] = html
     else:
         html = st.session_state[cache_key]
