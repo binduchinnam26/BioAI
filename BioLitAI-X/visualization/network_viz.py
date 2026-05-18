@@ -41,40 +41,42 @@ from utils.helpers import (
 
 def get_physics_options(node_count: int) -> Dict:
     """
-    Return Barnes-Hut physics options tuned to graph size.
-    Small graphs (<50 nodes): spread out more.
-    Large graphs (>500 nodes): compress to maintain readability.
+    VOSviewer-faithful physics: short springs pull co-occurring nodes into
+    tight clusters; strong central gravity keeps the whole network together.
     """
     if node_count < 50:
-        grav = -5000
-        spring = 220
+        grav = -3000
+        spring = 80
+        central = 0.4
     elif node_count > 500:
-        grav = -12000
-        spring = 120
+        grav = -6000
+        spring = 50
+        central = 0.5
     else:
-        grav = -8000
-        spring = 160
+        grav = -4500
+        spring = 65
+        central = 0.45
 
     return {
         "physics": {
             "enabled": True,
             "barnesHut": {
                 "gravitationalConstant": grav,
-                "centralGravity": 0.25,
+                "centralGravity": central,
                 "springLength": spring,
-                "springConstant": 0.03,
-                "damping": 0.09,
-                "avoidOverlap": 0.6,
+                "springConstant": 0.08,
+                "damping": 0.15,
+                "avoidOverlap": 0.8,
             },
             "maxVelocity": 50,
             "minVelocity": 0.5,
             "stabilization": {
                 "enabled": True,
-                "iterations": 1200,
+                "iterations": 1500,
                 "updateInterval": 20,
                 "fit": True,
             },
-            "timestep": 0.4,
+            "timestep": 0.35,
         },
         "interaction": {
             "hover": True,
@@ -89,8 +91,8 @@ def get_physics_options(node_count: int) -> Dict:
         "edges": {
             "chosen": True,
             "physics": True,
-            "hoverWidth": 2.5,
-            "selectionWidth": 3.0,
+            "hoverWidth": 3.0,
+            "selectionWidth": 3.5,
         },
     }
 
@@ -98,10 +100,10 @@ def get_physics_options(node_count: int) -> Dict:
 # ── Tooltip container style ───────────────────────────────────────────────────
 
 _TOOLTIP_STYLE = (
-    "background:#1C2539;border:1px solid #3B4A6B;border-radius:8px;"
+    "background:#FFFFFF;border:1px solid #D1D5DB;border-radius:6px;"
     "padding:10px 14px;font-family:'Open Sans',Arial,sans-serif;"
-    "font-size:12px;color:#F0F4FF;max-width:260px;"
-    "box-shadow:0 4px 16px rgba(0,0,0,0.5);line-height:1.6;"
+    "font-size:12px;color:#111827;max-width:260px;"
+    "box-shadow:0 4px 16px rgba(0,0,0,0.15);line-height:1.6;"
 )
 
 def _wrap_tooltip(content: str) -> str:
@@ -147,19 +149,19 @@ def _label_font(
     p90: float,
 ) -> Dict:
     """
-    VOSviewer-style dramatic font scaling: top nodes get large text,
-    all nodes remain visible (no transparent labels).
+    VOSviewer-style dramatic font scaling on white background.
+    Top nodes get very large dark text; all nodes remain labeled.
     """
     face = "Arial, sans-serif"
     if weight >= p90:
-        return {"size": 30, "color": "#FFFFFF", "face": face}
+        return {"size": 32, "color": "#111827", "face": face, "bold": True}
     if weight >= p75:
-        return {"size": 20, "color": "#FFFFFF", "face": face}
+        return {"size": 22, "color": "#111827", "face": face, "bold": True}
     if weight >= p50:
-        return {"size": 14, "color": "#E5E7EB", "face": face}
+        return {"size": 15, "color": "#1F2937", "face": face}
     if weight >= p25:
-        return {"size": 11, "color": "#D1D5DB", "face": face}
-    return {"size": 9, "color": "#9CA3AF", "face": face}
+        return {"size": 12, "color": "#374151", "face": face}
+    return {"size": 10, "color": "#6B7280", "face": face}
 
 
 # ── PyVis HTML post-processing ────────────────────────────────────────────────
@@ -352,13 +354,15 @@ def _build_pyvis_network(
         width="100%",
         directed=directed,
         bgcolor=CANVAS_BG,
-        font_color="#FFFFFF",
+        font_color="#111827",
     )
     net.toggle_physics(True)
 
     for node in graph.nodes():
         data = graph.nodes[node]
         fill_hex = data.get("color_hex", COMMUNITY_COLORS[0])
+        # Slightly lighter shade for border — subtle VOSviewer ring
+        border_hex = lighten_hex(fill_hex, 0.20)
         size = node_sizes.get(node, NODE_SIZE_MIN)
         weight = node_weights.get(node, 1)
         label = label_fn(node, data)
@@ -366,12 +370,11 @@ def _build_pyvis_network(
         shape = shape_fn(data) if shape_fn else "dot"
         font = _label_font(weight, p25, p50, p75, p90)
 
-        # Borderless VOSviewer-style nodes: border matches fill
         node_color = {
             "background": fill_hex,
-            "border": fill_hex,
-            "highlight": {"background": lighten_hex(fill_hex, 0.25), "border": "#FFFFFF"},
-            "hover": {"background": lighten_hex(fill_hex, 0.15), "border": fill_hex},
+            "border": border_hex,
+            "highlight": {"background": lighten_hex(fill_hex, 0.30), "border": "#333333"},
+            "hover": {"background": lighten_hex(fill_hex, 0.15), "border": "#333333"},
         }
 
         net.add_node(
@@ -381,18 +384,18 @@ def _build_pyvis_network(
             size=size,
             shape=shape,
             color=node_color,
-            borderWidth=0,
+            borderWidth=1,
             borderWidthSelected=2,
             font=font,
         )
 
     for u, v in graph.edges():
         src_color_hex = graph.nodes[u].get("color_hex", COMMUNITY_COLORS[0])
-        # VOSviewer-style: very thin, lightly opaque edges
+        # Cluster-colored edges, visible on white background
         edge_color = {
-            "color": hex_to_rgba(src_color_hex, 0.18),
-            "highlight": hex_to_rgba(src_color_hex, 0.85),
-            "hover": hex_to_rgba(src_color_hex, 0.60),
+            "color": hex_to_rgba(src_color_hex, 0.40),
+            "highlight": hex_to_rgba(src_color_hex, 1.0),
+            "hover": hex_to_rgba(src_color_hex, 0.80),
         }
         width = edge_widths.get((u, v), EDGE_WIDTH_MIN)
         edge_data = graph[u][v] if isinstance(graph, nx.Graph) else {}
