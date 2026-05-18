@@ -17,7 +17,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import networkx as nx
 
 # Bump this whenever visualization styling changes to invalidate cached HTML.
-_VIZ_VERSION = "v13"
+_VIZ_VERSION = "v14"
 
 from config import (
     CANVAS_BG,
@@ -49,13 +49,15 @@ def get_physics_options(
     label_min: int = 16,
     label_max: int = 70,
     label_threshold: int = 1,
+    node_scale_min: int = 30,
+    node_scale_max: int = 150,
 ) -> Dict:
     """
-    VOSviewer-faithful physics: low central gravity lets communities
-    separate; longer springs spread nodes out so labels have room.
-    node.value drives both circle size and label size via scaling.
-    layout_spread=True uses much lower central gravity so nodes fan out
-    instead of collapsing to the canvas centre.
+    VOSviewer-faithful physics. layout_spread=True switches to a physics
+    profile designed to separate communities into distinct visible clusters
+    rather than a dense ball: small nodes + zero overlap-avoidance + strong
+    mutual repulsion so Barnes-Hut forces (not collision detection) drive
+    the layout.
     """
     if node_count < 50:
         grav = -4000
@@ -71,18 +73,23 @@ def get_physics_options(
         central = 0.10
 
     if layout_spread:
-        # Pull nodes apart: weaker central gravity, longer springs.
-        # Pair with higher damping + lower iteration cap so the simulation
-        # converges quickly despite the looser force balance.
-        central = 0.02
-        spring = max(spring, 180)
-        damping = 0.40       # default 0.18 → faster velocity decay
-        min_vel = 2.0        # default 0.5  → stop sooner
-        iterations = 800     # default 1500 → fewer steps needed
+        # Community-separation physics (VOSviewer style):
+        #   • strong mutual repulsion separates clusters
+        #   • short springs keep intra-community nodes tightly grouped
+        #   • avoidOverlap=0 removes the collision forces that turn large
+        #     nodes into a tightly-packed ball
+        grav = -12000
+        spring = 120
+        central = 0.04
+        damping = 0.35
+        min_vel = 1.5
+        iterations = 700
+        avoid_overlap = 0.0
     else:
         damping = 0.18
         min_vel = 0.5
         iterations = 1500
+        avoid_overlap = 1.0
 
     return {
         "physics": {
@@ -93,7 +100,7 @@ def get_physics_options(
                 "springLength": spring,
                 "springConstant": 0.04,
                 "damping": damping,
-                "avoidOverlap": 1.0,
+                "avoidOverlap": avoid_overlap,
             },
             "maxVelocity": 50,
             "minVelocity": min_vel,
@@ -128,10 +135,9 @@ def get_physics_options(
                 "hover": {"border": "#FFFFFF"},
             },
             # value= on each node drives size AND label via these ranges.
-            # Large max values give VOSviewer-scale hub nodes.
             "scaling": {
-                "min": 30,
-                "max": 150,
+                "min": node_scale_min,
+                "max": node_scale_max,
                 "label": {
                     "enabled": True,
                     "min": label_min,
@@ -408,6 +414,8 @@ def _build_pyvis_network(
     label_min: int = 16,
     label_max: int = 70,
     label_threshold: int = 1,
+    node_scale_min: int = 30,
+    node_scale_max: int = 150,
 ) -> Any:
     """
     Build a PyVis Network object from a NetworkX graph with full
@@ -490,6 +498,8 @@ def _build_pyvis_network(
         label_min=label_min,
         label_max=label_max,
         label_threshold=label_threshold,
+        node_scale_min=node_scale_min,
+        node_scale_max=node_scale_max,
     )
     net.set_options(json.dumps(physics_opts))
     return net
@@ -651,10 +661,15 @@ def render_coauthorship_network(
             viz_graph, node_sizes, edge_widths, node_weights,
             label_fn, tooltip_fn, _default_edge_tooltip,
             smooth_edges=True, navigation_buttons=True, layout_spread=True,
-            # Coauth label tuning: small base font + higher draw threshold
-            # means only medium/large nodes (mid-to-high degree authors) show
-            # labels at the default zoom — identical to VOSviewer's behaviour.
-            label_min=11, label_max=62, label_threshold=9,
+            # Small nodes: 8–40 px radius instead of 30–150.
+            # With 700+ nodes the 30px minimum made the combined node footprint
+            # 3× the canvas area, forcing a dense ball regardless of physics.
+            # At 8–40 px, footprint is well below canvas area so Barnes-Hut
+            # repulsion can separate clusters into the VOSviewer layout.
+            node_scale_min=8, node_scale_max=40,
+            # Labels: only medium/high-degree authors show labels at default
+            # zoom (threshold suppresses tiny labels on peripheral nodes).
+            label_min=9, label_max=26, label_threshold=9,
         )
         if freeze:
             net.toggle_physics(False)
