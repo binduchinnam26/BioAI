@@ -17,7 +17,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import networkx as nx
 
 # Bump this whenever visualization styling changes to invalidate cached HTML.
-_VIZ_VERSION = "v7"
+_VIZ_VERSION = "v8"
 
 from config import (
     CANVAS_BG,
@@ -97,20 +97,32 @@ def get_physics_options(node_count: int) -> Dict:
             "physics": True,
             "borderWidth": 0,
             "borderWidthSelected": 0,
-            # value= on each node drives size AND label via these ranges
+            # Force white borders globally so vis.js never auto-generates
+            # a coloured ring from the per-node hex string.
+            "color": {
+                "border": "#FFFFFF",
+                "highlight": {"border": "#FFFFFF"},
+                "hover": {"border": "#FFFFFF"},
+            },
+            # value= on each node drives size AND label via these ranges.
+            # Large max values give VOSviewer-scale hub nodes.
             "scaling": {
-                "min": 18,
-                "max": 85,
+                "min": 30,
+                "max": 150,
                 "label": {
                     "enabled": True,
-                    "min": 12,
-                    "max": 52,
+                    "min": 16,
+                    "max": 70,
                     "drawThreshold": 1,
-                    "maxVisible": 52,
+                    "maxVisible": 70,
                 },
             },
-            "font": {"color": "#111827", "face": "Arial", "strokeWidth": 3,
-                     "strokeColor": "#FFFFFF"},
+            "font": {
+                "color": "#111827",
+                "face": "Arial",
+                "strokeWidth": 4,
+                "strokeColor": "#FFFFFF",
+            },
         },
         "edges": {
             "chosen": False,
@@ -198,9 +210,9 @@ network.once('stabilizationIterationsDone', function() {
   // Without this, 400+ node networks zoom to ~0.07x making text invisible.
   network.fit({ animation: false });
   var scale = network.getScale();
-  if (scale < 0.35) {
+  if (scale < 0.45) {
     network.moveTo({
-      scale: 0.35,
+      scale: 0.45,
       animation: { duration: 400, easingFunction: 'easeInOutQuad' }
     });
   }
