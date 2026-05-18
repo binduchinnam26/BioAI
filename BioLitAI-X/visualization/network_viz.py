@@ -17,7 +17,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import networkx as nx
 
 # Bump this whenever visualization styling changes to invalidate cached HTML.
-_VIZ_VERSION = "v21"
+_VIZ_VERSION = "v22"
 
 from config import (
     CANVAS_BG,
@@ -132,12 +132,12 @@ def get_physics_options(
         "nodes": {
             "chosen": False,
             "physics": True,
-            "borderWidth": 2,
-            "borderWidthSelected": 3,
+            "borderWidth": 0,
+            "borderWidthSelected": 0,
             "color": {
-                "border": "rgba(255,255,255,0.55)",
-                "highlight": {"border": "rgba(255,255,255,0.9)"},
-                "hover": {"border": "rgba(255,255,255,0.9)"},
+                "border": "transparent",
+                "highlight": {"border": "transparent"},
+                "hover": {"border": "transparent"},
             },
             "shadow": {
                 "enabled": True,
@@ -277,44 +277,54 @@ _HIGHLIGHT_JS = """
 <script>
 var allNodes = network.body.data.nodes;
 var allEdges = network.body.data.edges;
-var _clickedNodeId = null;
+var _clickedNodeId  = null;
+var _lastHoveredId  = null;
+var _hoverRaf       = null;
 
 function _applyNeighbourHighlight(nodeId) {
-  var connectedNodes = new Set(network.getConnectedNodes(nodeId));
-  connectedNodes.add(nodeId);
-  var connectedEdges = new Set(network.getConnectedEdges(nodeId));
-  var nUp = [], eUp = [];
-  allNodes.getIds().forEach(function(id) {
-    nUp.push({ id: id, opacity: connectedNodes.has(id) ? 1.0 : 0.12 });
-  });
-  allNodes.update(nUp);
-  allEdges.getIds().forEach(function(id) {
-    eUp.push({ id: id, opacity: connectedEdges.has(id) ? 1.0 : 0.04 });
-  });
-  allEdges.update(eUp);
+  var conn  = new Set(network.getConnectedNodes(nodeId));
+  conn.add(nodeId);
+  var econn = new Set(network.getConnectedEdges(nodeId));
+  allNodes.update(allNodes.getIds().map(function(id) {
+    return { id: id, opacity: conn.has(id) ? 1.0 : 0.12 };
+  }));
+  allEdges.update(allEdges.getIds().map(function(id) {
+    return { id: id, opacity: econn.has(id) ? 1.0 : 0.04 };
+  }));
 }
 
 function _restoreAll() {
-  var nUp = allNodes.getIds().map(function(id) { return { id: id, opacity: 1.0 }; });
-  allNodes.update(nUp);
-  var eUp = allEdges.getIds().map(function(id) { return { id: id, opacity: 1.0 }; });
-  allEdges.update(eUp);
+  allNodes.update(allNodes.getIds().map(function(id) { return { id: id, opacity: 1.0 }; }));
+  allEdges.update(allEdges.getIds().map(function(id) { return { id: id, opacity: 1.0 }; }));
 }
 
-// Hover: highlight neighbourhood; skip when a node is already clicked.
-network.on('hoverNode', function(params) {
+// Use mousemove + getNodeAt for reliable cross-browser hover detection.
+// Throttled to one check per animation frame to avoid performance issues.
+var _canvas = network.body.container;
+_canvas.addEventListener('mousemove', function(e) {
   if (_clickedNodeId !== null) return;
-  _applyNeighbourHighlight(params.node);
+  if (_hoverRaf) return;
+  var cx = e.clientX, cy = e.clientY;
+  _hoverRaf = requestAnimationFrame(function() {
+    _hoverRaf = null;
+    var rect   = _canvas.getBoundingClientRect();
+    var nodeId = network.getNodeAt({ x: cx - rect.left, y: cy - rect.top });
+    if (nodeId !== undefined && nodeId !== _lastHoveredId) {
+      _lastHoveredId = nodeId;
+      _applyNeighbourHighlight(nodeId);
+    } else if (nodeId === undefined && _lastHoveredId !== null) {
+      _lastHoveredId = null;
+      _restoreAll();
+    }
+  });
 });
 
-// Mouse-out: restore unless a node is clicked.
-network.on('blurNode', function() {
-  if (_clickedNodeId !== null) return;
-  _restoreAll();
+_canvas.addEventListener('mouseleave', function() {
+  _lastHoveredId = null;
+  _hoverRaf = null;
+  if (_clickedNodeId === null) _restoreAll();
 });
 
-// Click a node: lock the highlight so hover doesn't override it.
-// Click canvas background: clear the lock and restore.
 network.on('click', function(params) {
   if (params.nodes.length === 0) {
     _clickedNodeId = null;
