@@ -17,7 +17,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import networkx as nx
 
 # Bump this whenever visualization styling changes to invalidate cached HTML.
-_VIZ_VERSION = "v11"
+_VIZ_VERSION = "v12"
 
 from config import (
     CANVAS_BG,
@@ -46,6 +46,9 @@ def get_physics_options(
     node_count: int,
     navigation_buttons: bool = False,
     layout_spread: bool = False,
+    label_min: int = 16,
+    label_max: int = 70,
+    label_threshold: int = 1,
 ) -> Dict:
     """
     VOSviewer-faithful physics: low central gravity lets communities
@@ -122,10 +125,10 @@ def get_physics_options(
                 "max": 150,
                 "label": {
                     "enabled": True,
-                    "min": 16,
-                    "max": 70,
-                    "drawThreshold": 1,
-                    "maxVisible": 70,
+                    "min": label_min,
+                    "max": label_max,
+                    "drawThreshold": label_threshold,
+                    "maxVisible": label_max,
                 },
             },
             "font": {
@@ -393,6 +396,9 @@ def _build_pyvis_network(
     smooth_edges: bool = False,
     navigation_buttons: bool = False,
     layout_spread: bool = False,
+    label_min: int = 16,
+    label_max: int = 70,
+    label_threshold: int = 1,
 ) -> Any:
     """
     Build a PyVis Network object from a NetworkX graph with full
@@ -469,6 +475,9 @@ def _build_pyvis_network(
         graph.number_of_nodes(),
         navigation_buttons=navigation_buttons,
         layout_spread=layout_spread,
+        label_min=label_min,
+        label_max=label_max,
+        label_threshold=label_threshold,
     )
     net.set_options(json.dumps(physics_opts))
     return net
@@ -576,8 +585,12 @@ def render_coauthorship_network(
     if cache_key not in st.session_state or st.session_state[cache_key] is None:
         node_sizes = _compute_node_sizes(filtered)
         edge_widths = _compute_edge_widths(filtered)
-        node_weights = {n: filtered.nodes[n].get("weight", 1)
-                        for n in filtered.nodes()}
+
+        # VOSviewer-faithful sizing: drive node/label size by DEGREE (number of
+        # co-authors) rather than raw paper count.  Degree follows a power-law
+        # distribution so hub authors get dramatically larger nodes while
+        # peripheral authors stay as small background dots — exactly like VOSviewer.
+        node_weights = {n: max(filtered.degree(n), 1) for n in filtered.nodes()}
 
         # VOSviewer coloring: "bridge" authors (or main-component members when
         # cross-cluster detection yields too few) keep their cluster color;
@@ -626,12 +639,16 @@ def render_coauthorship_network(
             viz_graph, node_sizes, edge_widths, node_weights,
             label_fn, tooltip_fn, _default_edge_tooltip,
             smooth_edges=True, navigation_buttons=True, layout_spread=True,
+            # Coauth label tuning: small base font + higher draw threshold
+            # means only medium/large nodes (mid-to-high degree authors) show
+            # labels at the default zoom — identical to VOSviewer's behaviour.
+            label_min=11, label_max=62, label_threshold=9,
         )
         if freeze:
             net.toggle_physics(False)
         html = _pyvis_to_html(net, filtered.number_of_nodes())
-        # Coauth-specific: increase minimum zoom so nodes/labels stay readable
-        html = html.replace("if (scale < 0.45)", "if (scale < 0.55)")
+        # Coauth-specific: higher minimum zoom keeps hub nodes/labels readable
+        html = html.replace("if (scale < 0.45)", "if (scale < 0.65)")
         st.session_state[cache_key] = html
     else:
         html = st.session_state[cache_key]
