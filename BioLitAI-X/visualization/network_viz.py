@@ -17,7 +17,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import networkx as nx
 
 # Bump this whenever visualization styling changes to invalidate cached HTML.
-_VIZ_VERSION = "v18"
+_VIZ_VERSION = "v19"
 
 from config import (
     CANVAS_BG,
@@ -62,34 +62,32 @@ def get_physics_options(
     Gephi) — produces clear cluster separation without ball collapse.
     """
     if layout_spread:
-        physics_section: Dict = {
-            "enabled": True,
-            "solver": "forceAtlas2Based",
-            "forceAtlas2Based": {
-                # Strong repulsion (-400) spreads nodes within each cluster
-                # so they don't pack into tight balls visible at fit-to-screen.
-                # springLength=220 keeps cluster members further apart;
-                # springConstant=0.04 weakens the clustering pull.
-                # avoidOverlap=0.5 adds size-proportional breathing room.
-                "gravitationalConstant": -400,
-                "centralGravity": 0.005,
-                "springLength": 220,
-                "springConstant": 0.04,
-                "damping": 0.4,
-                "avoidOverlap": 0.5,
-            },
-            "maxVelocity": 80,
-            "minVelocity": 0.5,
-            "stabilization": {
+        if freeze_layout:
+            # Positions are pre-computed; no physics needed at all.
+            # _COAUTH_STABILIZE_JS uses setTimeout for the fit() call.
+            physics_section = {"enabled": False}
+        else:
+            physics_section = {
                 "enabled": True,
-                # When positions are pre-computed, 1 iteration is enough to
-                # fire stabilizationIterationsDone (which triggers fit()).
-                "iterations": 1 if freeze_layout else 1000,
-                "updateInterval": 25,
-                "fit": True,
-            },
-            "timestep": 0.3,
-        }
+                "solver": "forceAtlas2Based",
+                "forceAtlas2Based": {
+                    "gravitationalConstant": -400,
+                    "centralGravity": 0.005,
+                    "springLength": 220,
+                    "springConstant": 0.04,
+                    "damping": 0.4,
+                    "avoidOverlap": 0.5,
+                },
+                "maxVelocity": 80,
+                "minVelocity": 0.5,
+                "stabilization": {
+                    "enabled": True,
+                    "iterations": 1000,
+                    "updateInterval": 25,
+                    "fit": True,
+                },
+                "timestep": 0.3,
+            }
     else:
         if node_count < 50:
             grav, spring, central = -4000, 160, 0.08
@@ -252,6 +250,19 @@ network.once('stabilizationIterationsDone', function() {
     });
   }
 });
+</script>
+"""
+
+# Used for the co-authorship network where physics is disabled (pre-computed
+# positions). stabilizationIterationsDone never fires when physics is off, so
+# we use a plain setTimeout to fit the view after the first draw.
+_COAUTH_STABILIZE_JS = """
+<script>
+setTimeout(function() {
+  network.fit({ animation: false });
+  var scale = network.getScale();
+  if (scale > 0.85) { network.moveTo({ scale: 0.85, animation: false }); }
+}, 200);
 </script>
 """
 
@@ -763,21 +774,10 @@ def render_coauthorship_network(
         if freeze:
             net.toggle_physics(False)
         html = _pyvis_to_html(net, filtered.number_of_nodes())
-        # Coauth zoom: only cap the upper end (prevents tiny graphs zooming in
-        # past 0.85). For large graphs, let network.fit() choose the zoom so
-        # the full spread is visible rather than forcing a minimum that crops
-        # the layout into the dense center.
-        html = html.replace(
-            "  var scale = network.getScale();\n"
-            "  if (scale < 0.45) {\n"
-            "    network.moveTo({\n"
-            "      scale: 0.45,\n"
-            "      animation: { duration: 400, easingFunction: 'easeInOutQuad' }\n"
-            "    });\n"
-            "  }",
-            "  var scale = network.getScale();\n"
-            "  if (scale > 0.85) { network.moveTo({ scale: 0.85, animation: false }); }",
-        )
+        # Physics is disabled (pre-computed positions). Swap the
+        # stabilizationIterationsDone handler (which never fires without
+        # physics) for a plain setTimeout-based fit.
+        html = html.replace(_STABILIZE_JS, _COAUTH_STABILIZE_JS)
         st.session_state[cache_key] = html
     else:
         html = st.session_state[cache_key]
