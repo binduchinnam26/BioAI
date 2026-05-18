@@ -17,7 +17,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import networkx as nx
 
 # Bump this whenever visualization styling changes to invalidate cached HTML.
-_VIZ_VERSION = "v14"
+_VIZ_VERSION = "v15"
 
 from config import (
     CANVAS_BG,
@@ -53,65 +53,68 @@ def get_physics_options(
     node_scale_max: int = 150,
 ) -> Dict:
     """
-    VOSviewer-faithful physics. layout_spread=True switches to a physics
-    profile designed to separate communities into distinct visible clusters
-    rather than a dense ball: small nodes + zero overlap-avoidance + strong
-    mutual repulsion so Barnes-Hut forces (not collision detection) drive
-    the layout.
+    Physics / styling options for vis.js.
+
+    Default (layout_spread=False): Barnes-Hut tuned per node count.
+    layout_spread=True: switches to forceAtlas2Based which is specifically
+    designed for community-graph visualisation (same family as VOSviewer /
+    Gephi) — produces clear cluster separation without ball collapse.
     """
-    if node_count < 50:
-        grav = -4000
-        spring = 160
-        central = 0.08
-    elif node_count > 500:
-        grav = -8000
-        spring = 110
-        central = 0.12
-    else:
-        grav = -6000
-        spring = 130
-        central = 0.10
-
     if layout_spread:
-        # Community-separation physics (VOSviewer style):
-        #   • strong mutual repulsion separates clusters
-        #   • short springs keep intra-community nodes tightly grouped
-        #   • avoidOverlap=0 removes the collision forces that turn large
-        #     nodes into a tightly-packed ball
-        grav = -12000
-        spring = 120
-        central = 0.04
-        damping = 0.35
-        min_vel = 1.5
-        iterations = 700
-        avoid_overlap = 0.0
+        physics_section: Dict = {
+            "enabled": True,
+            "solver": "forceAtlas2Based",
+            "forceAtlas2Based": {
+                # Negative = repulsion strength. Range [-300, -0.5].
+                # -150 separates communities while keeping graph on-screen.
+                "gravitationalConstant": -150,
+                "centralGravity": 0.008,
+                "springLength": 120,
+                "springConstant": 0.08,
+                "damping": 0.35,
+                "avoidOverlap": 0,
+            },
+            "maxVelocity": 50,
+            "minVelocity": 0.5,
+            "stabilization": {
+                "enabled": True,
+                "iterations": 1000,
+                "updateInterval": 25,
+                "fit": True,
+            },
+            "timestep": 0.35,
+        }
     else:
-        damping = 0.18
-        min_vel = 0.5
-        iterations = 1500
-        avoid_overlap = 1.0
+        if node_count < 50:
+            grav, spring, central = -4000, 160, 0.08
+        elif node_count > 500:
+            grav, spring, central = -8000, 110, 0.12
+        else:
+            grav, spring, central = -6000, 130, 0.10
 
-    return {
-        "physics": {
+        physics_section = {
             "enabled": True,
             "barnesHut": {
                 "gravitationalConstant": grav,
                 "centralGravity": central,
                 "springLength": spring,
                 "springConstant": 0.04,
-                "damping": damping,
-                "avoidOverlap": avoid_overlap,
+                "damping": 0.18,
+                "avoidOverlap": 1.0,
             },
             "maxVelocity": 50,
-            "minVelocity": min_vel,
+            "minVelocity": 0.5,
             "stabilization": {
                 "enabled": True,
-                "iterations": iterations,
+                "iterations": 1500,
                 "updateInterval": 25,
                 "fit": True,
             },
             "timestep": 0.4,
-        },
+        }
+
+    return {
+        "physics": physics_section,
         "interaction": {
             "hover": True,
             "tooltipDelay": 150,
@@ -127,14 +130,11 @@ def get_physics_options(
             "physics": True,
             "borderWidth": 0,
             "borderWidthSelected": 0,
-            # Force white borders globally so vis.js never auto-generates
-            # a coloured ring from the per-node hex string.
             "color": {
                 "border": "#FFFFFF",
                 "highlight": {"border": "#FFFFFF"},
                 "hover": {"border": "#FFFFFF"},
             },
-            # value= on each node drives size AND label via these ranges.
             "scaling": {
                 "min": node_scale_min,
                 "max": node_scale_max,
@@ -624,7 +624,17 @@ def render_coauthorship_network(
                 viz_graph.nodes[node]["color_hex"] = _COAUTH_GREY
                 viz_graph.nodes[node]["font_color"] = "#999999"
 
+        # Degree-based label gate: only the top 25 % of nodes by degree get a
+        # visible label.  This is done by setting label="" for the rest, which
+        # is unconditional — unlike drawThreshold, it doesn't depend on zoom.
+        _node_degs = dict(filtered.degree())
+        _sorted_degs = sorted(_node_degs.values())
+        _p75 = _sorted_degs[int(len(_sorted_degs) * 0.75)] if _sorted_degs else 1
+        _label_cutoff = max(_p75, 2)
+
         def label_fn(node, data):
+            if _node_degs.get(node, 0) < _label_cutoff:
+                return ""
             return format_author_short(str(node))
 
         def tooltip_fn(node, data, g):
@@ -674,8 +684,21 @@ def render_coauthorship_network(
         if freeze:
             net.toggle_physics(False)
         html = _pyvis_to_html(net, filtered.number_of_nodes())
-        # Coauth-specific: higher minimum zoom keeps hub nodes/labels readable
-        html = html.replace("if (scale < 0.45)", "if (scale < 0.65)")
+        # Coauth-specific zoom clamp: keep scale between 0.50 and 0.80.
+        # Upper bound prevents a dense cluster from zooming into its own
+        # centre (which was making all labels visible at once).
+        html = html.replace(
+            "  var scale = network.getScale();\n"
+            "  if (scale < 0.45) {\n"
+            "    network.moveTo({\n"
+            "      scale: 0.45,\n"
+            "      animation: { duration: 400, easingFunction: 'easeInOutQuad' }\n"
+            "    });\n"
+            "  }",
+            "  var scale = network.getScale();\n"
+            "  var tgt = Math.min(Math.max(scale, 0.50), 0.80);\n"
+            "  if (tgt !== scale) { network.moveTo({ scale: tgt, animation: false }); }",
+        )
         st.session_state[cache_key] = html
     else:
         html = st.session_state[cache_key]
