@@ -256,7 +256,7 @@ class TopicModeler:
 
         combined_stops = frozenset(ENGLISH_STOP_WORDS) | frozenset(_BIOMEDICAL_STOPWORDS)
         vectorizer_model = CountVectorizer(
-            stop_words=combined_stops,
+            stop_words=list(combined_stops),
             min_df=2,
             ngram_range=(1, 2),
             max_features=10_000,
