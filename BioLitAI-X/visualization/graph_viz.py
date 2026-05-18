@@ -360,8 +360,10 @@ def _build_kg_html(
     w_max = max(weights.values(), default=1)
 
     w_list = list(weights.values())
+    p25 = percentile(w_list, 25) if w_list else 1.0
     p50 = percentile(w_list, 50) if w_list else 1.0
     p75 = percentile(w_list, 75) if w_list else 1.0
+    p90 = percentile(w_list, 90) if w_list else 1.0
 
     edge_weights = {}
     for u, v, data in graph.edges(data=True):
@@ -376,7 +378,7 @@ def _build_kg_html(
         width="100%",
         directed=True,
         bgcolor=CANVAS_BG,
-        font_color="#D1D5DB",
+        font_color="#FFFFFF",
     )
     net.toggle_physics(True)
 
@@ -384,17 +386,17 @@ def _build_kg_html(
         data = graph.nodes[node]
         etype = data.get("entity_type", "UNKNOWN")
         fill_hex = ENTITY_TYPE_COLORS.get(etype, "#9CA3AF")
-        border_hex = lighten_hex(fill_hex, 0.30)
         w = weights.get(node, 1)
         size = scale_node_size(w, w_min, w_max, NODE_SIZE_MIN, NODE_SIZE_MAX)
         label = truncate(str(node), 20)
-        font = _label_font(w, p50, p75)
+        font = _label_font(w, p25, p50, p75, p90)
         tooltip = _kg_node_tooltip(node, data, graph)
+        # Borderless VOSviewer-style nodes
         node_color = {
             "background": fill_hex,
-            "border": border_hex,
-            "highlight": {"background": fill_hex, "border": "#FFFFFF"},
-            "hover": {"background": fill_hex, "border": "#FFFFFF"},
+            "border": fill_hex,
+            "highlight": {"background": lighten_hex(fill_hex, 0.25), "border": "#FFFFFF"},
+            "hover": {"background": lighten_hex(fill_hex, 0.15), "border": fill_hex},
         }
         net.add_node(
             str(node),
@@ -403,7 +405,8 @@ def _build_kg_html(
             size=size,
             shape="dot",
             color=node_color,
-            borderWidth=2,
+            borderWidth=0,
+            borderWidthSelected=2,
             font=font,
         )
 
@@ -418,10 +421,11 @@ def _build_kg_html(
         fill_hex = ENTITY_TYPE_COLORS.get(etype_u, "#9CA3AF")
         w = edge_weights.get((u, v), 1)
         width = scale_edge_width(w, ew_min, ew_max, EDGE_WIDTH_MIN, EDGE_WIDTH_MAX)
+        # VOSviewer-style: very thin, lightly opaque edges
         edge_color = {
-            "color": hex_to_rgba(fill_hex, 0.25),
-            "highlight": hex_to_rgba(fill_hex, 0.90),
-            "hover": hex_to_rgba(fill_hex, 0.70),
+            "color": hex_to_rgba(fill_hex, 0.18),
+            "highlight": hex_to_rgba(fill_hex, 0.85),
+            "hover": hex_to_rgba(fill_hex, 0.60),
         }
         rel_type = data.get("relationship_type", "")
         pmids = data.get("evidence_pmids", [])

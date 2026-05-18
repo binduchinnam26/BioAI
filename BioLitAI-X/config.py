@@ -96,28 +96,28 @@ LOG_DIR.mkdir(exist_ok=True)
 
 # ── Visualization ─────────────────────────────────────────────────────────────
 # Node size scaling
-NODE_SIZE_MIN = 12
-NODE_SIZE_MAX = 55
+NODE_SIZE_MIN = 8
+NODE_SIZE_MAX = 60
 
-# Edge width scaling
-EDGE_WIDTH_MIN = 0.5
-EDGE_WIDTH_MAX = 8.0
+# Edge width scaling (thin VOSviewer-style lines)
+EDGE_WIDTH_MIN = 0.3
+EDGE_WIDTH_MAX = 2.5
 
 # Canvas background
 CANVAS_BG = "#0D1117"
 
-# Community color palette (cycles if > 10 communities)
+# Community color palette — VOSviewer-faithful vivid hues (cycles if > 10)
 COMMUNITY_COLORS = [
-    "#4E9AF1",  # 0 clear blue
-    "#9B72CF",  # 1 muted violet
-    "#34C78A",  # 2 emerald green
-    "#F5A623",  # 3 warm amber
-    "#E85D5D",  # 4 coral red
-    "#26C9D3",  # 5 cyan teal
-    "#F97B4F",  # 6 burnt orange
-    "#D4699E",  # 7 dusty pink
-    "#A3C44B",  # 8 yellow-green lime
-    "#5BC8C8",  # 9 light teal
+    "#E8544A",  # 0 VOSviewer red
+    "#4CAF82",  # 1 VOSviewer green
+    "#C0CA33",  # 2 VOSviewer olive/yellow-green
+    "#7C5CBF",  # 3 VOSviewer purple
+    "#29B6C8",  # 4 VOSviewer cyan-teal
+    "#4285E8",  # 5 VOSviewer blue
+    "#F47B3A",  # 6 VOSviewer orange
+    "#AB47BC",  # 7 VOSviewer magenta-purple
+    "#66BB6A",  # 8 VOSviewer light green
+    "#26C6DA",  # 9 VOSviewer sky blue
 ]
 
 # Entity type colors for knowledge graph
