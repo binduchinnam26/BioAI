@@ -17,7 +17,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import networkx as nx
 
 # Bump this whenever visualization styling changes to invalidate cached HTML.
-_VIZ_VERSION = "v5"
+_VIZ_VERSION = "v6"
 
 from config import (
     CANVAS_BG,
@@ -95,7 +95,16 @@ def get_physics_options(node_count: int) -> Dict:
             "physics": True,
             "borderWidth": 0,
             "borderWidthSelected": 0,
-            "font": {"size": 13, "color": "#111827", "face": "Arial"},
+            "font": {"size": 14, "color": "#111827", "face": "Arial"},
+            "scaling": {
+                "label": {
+                    "enabled": True,
+                    "min": 10,
+                    "max": 60,
+                    "drawThreshold": 1,
+                    "maxVisible": 60,
+                }
+            },
         },
         "edges": {
             "chosen": False,
@@ -163,14 +172,14 @@ def _label_font(
     """
     face = "Arial"
     if weight >= p90:
-        return {"size": 32, "color": "#111827", "face": face}
+        return {"size": 56, "color": "#111827", "face": face}
     if weight >= p75:
-        return {"size": 22, "color": "#111827", "face": face}
+        return {"size": 38, "color": "#111827", "face": face}
     if weight >= p50:
-        return {"size": 16, "color": "#1F2937", "face": face}
+        return {"size": 26, "color": "#1F2937", "face": face}
     if weight >= p25:
-        return {"size": 13, "color": "#374151", "face": face}
-    return {"size": 11, "color": "#4B5563", "face": face}
+        return {"size": 18, "color": "#374151", "face": face}
+    return {"size": 13, "color": "#4B5563", "face": face}
 
 
 # ── PyVis HTML post-processing ────────────────────────────────────────────────
