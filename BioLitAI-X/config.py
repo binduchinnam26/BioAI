@@ -96,15 +96,15 @@ LOG_DIR.mkdir(exist_ok=True)
 
 # ── Visualization ─────────────────────────────────────────────────────────────
 # Node size scaling
-NODE_SIZE_MIN = 8
-NODE_SIZE_MAX = 60
+NODE_SIZE_MIN = 15
+NODE_SIZE_MAX = 70
 
 # Edge width scaling (thin VOSviewer-style lines)
-EDGE_WIDTH_MIN = 0.3
-EDGE_WIDTH_MAX = 2.5
+EDGE_WIDTH_MIN = 0.8
+EDGE_WIDTH_MAX = 4.0
 
-# Canvas background
-CANVAS_BG = "#0D1117"
+# Canvas background — white, matching VOSviewer
+CANVAS_BG = "#FFFFFF"
 
 # Community color palette — VOSviewer-faithful vivid hues (cycles if > 10)
 COMMUNITY_COLORS = [
