@@ -17,7 +17,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import networkx as nx
 
 # Bump this whenever visualization styling changes to invalidate cached HTML.
-_VIZ_VERSION = "v15"
+_VIZ_VERSION = "v16"
 
 from config import (
     CANVAS_BG,
@@ -624,16 +624,8 @@ def render_coauthorship_network(
                 viz_graph.nodes[node]["color_hex"] = _COAUTH_GREY
                 viz_graph.nodes[node]["font_color"] = "#999999"
 
-        # Degree-based label gate: only the top 25 % of nodes by degree get a
-        # visible label.  This is done by setting label="" for the rest, which
-        # is unconditional — unlike drawThreshold, it doesn't depend on zoom.
-        _node_degs = dict(filtered.degree())
-        _sorted_degs = sorted(_node_degs.values())
-        _p75 = _sorted_degs[int(len(_sorted_degs) * 0.75)] if _sorted_degs else 1
-        _label_cutoff = max(_p75, 2)
-
         def label_fn(node, data):
-            if _node_degs.get(node, 0) < _label_cutoff:
+            if viz_graph.nodes[node].get("color_hex") == _COAUTH_GREY:
                 return ""
             return format_author_short(str(node))
 
@@ -671,15 +663,13 @@ def render_coauthorship_network(
             viz_graph, node_sizes, edge_widths, node_weights,
             label_fn, tooltip_fn, _default_edge_tooltip,
             smooth_edges=True, navigation_buttons=True, layout_spread=True,
-            # Small nodes: 8–40 px radius instead of 30–150.
-            # With 700+ nodes the 30px minimum made the combined node footprint
-            # 3× the canvas area, forcing a dense ball regardless of physics.
-            # At 8–40 px, footprint is well below canvas area so Barnes-Hut
-            # repulsion can separate clusters into the VOSviewer layout.
-            node_scale_min=8, node_scale_max=40,
-            # Labels: only medium/high-degree authors show labels at default
-            # zoom (threshold suppresses tiny labels on peripheral nodes).
-            label_min=9, label_max=26, label_threshold=9,
+            # Node radius range matching VOSviewer proportions.
+            # min=10 → peripheral dots ~6.5px on screen at 0.65× zoom (visible)
+            # max=55 → hub authors ~36px on screen (prominent, labelled)
+            node_scale_min=10, node_scale_max=55,
+            # Label range to match node scale; threshold=1 lets label_fn
+            # decide visibility (grey nodes get "" explicitly).
+            label_min=14, label_max=52, label_threshold=1,
         )
         if freeze:
             net.toggle_physics(False)
