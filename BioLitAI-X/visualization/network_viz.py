@@ -17,7 +17,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import networkx as nx
 
 # Bump this whenever visualization styling changes to invalidate cached HTML.
-_VIZ_VERSION = "v8"
+_VIZ_VERSION = "v9"
 
 from config import (
     CANVAS_BG,
@@ -596,10 +596,10 @@ def _render_coauth_stats(graph: nx.Graph):
 
 _KW_SHAPES = {
     "author_keyword": "dot",
-    "mesh_descriptor": "square",
-    "mesh_qualifier": "triangle",
-    "chemical": "diamond",
-    "publication_type": "star",
+    "mesh_descriptor": "dot",
+    "mesh_qualifier": "dot",
+    "chemical": "dot",
+    "publication_type": "dot",
 }
 
 _KW_TYPE_COLORS = {
