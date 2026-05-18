@@ -96,8 +96,8 @@ LOG_DIR.mkdir(exist_ok=True)
 
 # ── Visualization ─────────────────────────────────────────────────────────────
 # Node size scaling
-NODE_SIZE_MIN = 20
-NODE_SIZE_MAX = 75
+NODE_SIZE_MIN = 25
+NODE_SIZE_MAX = 90
 
 # Edge width scaling (thin VOSviewer-style lines)
 EDGE_WIDTH_MIN = 0.8

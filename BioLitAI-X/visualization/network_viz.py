@@ -17,7 +17,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import networkx as nx
 
 # Bump this whenever visualization styling changes to invalidate cached HTML.
-_VIZ_VERSION = "v4"
+_VIZ_VERSION = "v5"
 
 from config import (
     CANVAS_BG,
@@ -90,12 +90,18 @@ def get_physics_options(node_count: int) -> Dict:
             "navigationButtons": False,
             "keyboard": {"enabled": False},
         },
-        "nodes": {"chosen": True, "physics": True},
-        "edges": {
-            "chosen": True,
+        "nodes": {
+            "chosen": False,
             "physics": True,
-            "hoverWidth": 3.0,
-            "selectionWidth": 3.5,
+            "borderWidth": 0,
+            "borderWidthSelected": 0,
+            "font": {"size": 13, "color": "#111827", "face": "Arial"},
+        },
+        "edges": {
+            "chosen": False,
+            "physics": True,
+            "hoverWidth": 2.5,
+            "selectionWidth": 3.0,
         },
     }
 
@@ -364,7 +370,6 @@ def _build_pyvis_network(
     for node in graph.nodes():
         data = graph.nodes[node]
         fill_hex = data.get("color_hex", COMMUNITY_COLORS[0])
-        hover_hex = lighten_hex(fill_hex, 0.15)
         size = node_sizes.get(node, NODE_SIZE_MIN)
         weight = node_weights.get(node, 1)
         label = label_fn(node, data)
@@ -372,23 +377,15 @@ def _build_pyvis_network(
         shape = shape_fn(data) if shape_fn else "dot"
         font = _label_font(weight, p25, p50, p75, p90)
 
-        # borderWidth=0 prevents vis.js from drawing scaled border rings
-        node_color = {
-            "background": fill_hex,
-            "border": fill_hex,
-            "highlight": {"background": hover_hex, "border": hover_hex},
-            "hover": {"background": hover_hex, "border": hover_hex},
-        }
-
+        # Plain hex string — avoids vis.js color-dict parse failures
+        # that cause the default yellow highlight ring to appear.
         net.add_node(
             node,
             label=label,
             title=tooltip,
             size=size,
             shape=shape,
-            color=node_color,
-            borderWidth=0,
-            borderWidthSelected=0,
+            color=fill_hex,
             font=font,
         )
 
