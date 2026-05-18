@@ -17,7 +17,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import networkx as nx
 
 # Bump this whenever visualization styling changes to invalidate cached HTML.
-_VIZ_VERSION = "v22"
+_VIZ_VERSION = "v23"
 
 from config import (
     CANVAS_BG,
@@ -135,9 +135,9 @@ def get_physics_options(
             "borderWidth": 0,
             "borderWidthSelected": 0,
             "color": {
-                "border": "transparent",
-                "highlight": {"border": "transparent"},
-                "hover": {"border": "transparent"},
+                "border": "rgba(0,0,0,0)",
+                "highlight": {"border": "rgba(0,0,0,0)"},
+                "hover": {"border": "rgba(0,0,0,0)"},
             },
             "shadow": {
                 "enabled": True,
