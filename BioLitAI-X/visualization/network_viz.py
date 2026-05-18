@@ -17,7 +17,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import networkx as nx
 
 # Bump this whenever visualization styling changes to invalidate cached HTML.
-_VIZ_VERSION = "v6"
+_VIZ_VERSION = "v7"
 
 from config import (
     CANVAS_BG,
@@ -44,21 +44,22 @@ from utils.helpers import (
 
 def get_physics_options(node_count: int) -> Dict:
     """
-    VOSviewer-faithful physics: short springs pull co-occurring nodes into
-    tight clusters; strong central gravity keeps the whole network together.
+    VOSviewer-faithful physics: low central gravity lets communities
+    separate; longer springs spread nodes out so labels have room.
+    node.value drives both circle size and label size via scaling.
     """
     if node_count < 50:
-        grav = -3000
-        spring = 80
-        central = 0.4
+        grav = -4000
+        spring = 160
+        central = 0.08
     elif node_count > 500:
-        grav = -6000
-        spring = 50
-        central = 0.5
+        grav = -8000
+        spring = 110
+        central = 0.12
     else:
-        grav = -4500
-        spring = 65
-        central = 0.45
+        grav = -6000
+        spring = 130
+        central = 0.10
 
     return {
         "physics": {
@@ -67,19 +68,19 @@ def get_physics_options(node_count: int) -> Dict:
                 "gravitationalConstant": grav,
                 "centralGravity": central,
                 "springLength": spring,
-                "springConstant": 0.08,
-                "damping": 0.15,
-                "avoidOverlap": 0.8,
+                "springConstant": 0.04,
+                "damping": 0.18,
+                "avoidOverlap": 1.0,
             },
             "maxVelocity": 50,
             "minVelocity": 0.5,
             "stabilization": {
                 "enabled": True,
                 "iterations": 1500,
-                "updateInterval": 20,
+                "updateInterval": 25,
                 "fit": True,
             },
-            "timestep": 0.35,
+            "timestep": 0.4,
         },
         "interaction": {
             "hover": True,
@@ -89,22 +90,27 @@ def get_physics_options(node_count: int) -> Dict:
             "multiselect": True,
             "navigationButtons": False,
             "keyboard": {"enabled": False},
+            "zoomView": True,
         },
         "nodes": {
             "chosen": False,
             "physics": True,
             "borderWidth": 0,
             "borderWidthSelected": 0,
-            "font": {"size": 14, "color": "#111827", "face": "Arial"},
+            # value= on each node drives size AND label via these ranges
             "scaling": {
+                "min": 18,
+                "max": 85,
                 "label": {
                     "enabled": True,
-                    "min": 10,
-                    "max": 60,
+                    "min": 12,
+                    "max": 52,
                     "drawThreshold": 1,
-                    "maxVisible": 60,
-                }
+                    "maxVisible": 52,
+                },
             },
+            "font": {"color": "#111827", "face": "Arial", "strokeWidth": 3,
+                     "strokeColor": "#FFFFFF"},
         },
         "edges": {
             "chosen": False,
@@ -188,6 +194,16 @@ _STABILIZE_JS = """
 <script>
 network.once('stabilizationIterationsDone', function() {
   network.setOptions({ physics: { enabled: false } });
+  // Fit all nodes, then enforce a minimum zoom so labels remain readable.
+  // Without this, 400+ node networks zoom to ~0.07x making text invisible.
+  network.fit({ animation: false });
+  var scale = network.getScale();
+  if (scale < 0.35) {
+    network.moveTo({
+      scale: 0.35,
+      animation: { duration: 400, easingFunction: 'easeInOutQuad' }
+    });
+  }
 });
 </script>
 """
@@ -361,12 +377,6 @@ def _build_pyvis_network(
     except ImportError as exc:
         raise ImportError("pyvis is not installed. Run: pip install pyvis") from exc
 
-    w_list = list(node_weights.values())
-    p25 = percentile(w_list, 25) if w_list else 1.0
-    p50 = percentile(w_list, 50) if w_list else 1.0
-    p75 = percentile(w_list, 75) if w_list else 1.0
-    p90 = percentile(w_list, 90) if w_list else 1.0
-
     net = Network(
         height="850px",
         width="100%",
@@ -379,40 +389,33 @@ def _build_pyvis_network(
     for node in graph.nodes():
         data = graph.nodes[node]
         fill_hex = data.get("color_hex", COMMUNITY_COLORS[0])
-        size = node_sizes.get(node, NODE_SIZE_MIN)
         weight = node_weights.get(node, 1)
         label = label_fn(node, data)
         tooltip = tooltip_fn(node, data, graph)
         shape = shape_fn(data) if shape_fn else "dot"
-        font = _label_font(weight, p25, p50, p75, p90)
 
-        # Plain hex string — avoids vis.js color-dict parse failures
-        # that cause the default yellow highlight ring to appear.
+        # Use value= (not size=) so vis.js scaling.label fires and the
+        # font size scales proportionally — this is what makes VOSviewer-
+        # style dramatic label scaling work.
         net.add_node(
             node,
             label=label,
             title=tooltip,
-            size=size,
+            value=float(weight),
             shape=shape,
             color=fill_hex,
-            font=font,
         )
 
     for u, v in graph.edges():
         src_color_hex = graph.nodes[u].get("color_hex", COMMUNITY_COLORS[0])
-        # Cluster-colored edges, visible on white background
-        edge_color = {
-            "color": hex_to_rgba(src_color_hex, 0.40),
-            "highlight": hex_to_rgba(src_color_hex, 1.0),
-            "hover": hex_to_rgba(src_color_hex, 0.80),
-        }
         width = edge_widths.get((u, v), EDGE_WIDTH_MIN)
         edge_data = graph[u][v] if isinstance(graph, nx.Graph) else {}
         tooltip = edge_tooltip_fn(u, v, edge_data)
+        # Plain rgba string — avoids dict serialisation issues
         net.add_edge(
             u, v,
             width=width,
-            color=edge_color,
+            color=hex_to_rgba(src_color_hex, 0.45),
             title=tooltip,
             arrows="" if not directed else "to",
             smooth=False if not directed else
