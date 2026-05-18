@@ -152,16 +152,16 @@ def _label_font(
     VOSviewer-style dramatic font scaling on white background.
     Top nodes get very large dark text; all nodes remain labeled.
     """
-    face = "Arial, sans-serif"
+    face = "Arial"
     if weight >= p90:
-        return {"size": 32, "color": "#111827", "face": face, "bold": True}
+        return {"size": 32, "color": "#111827", "face": face}
     if weight >= p75:
-        return {"size": 22, "color": "#111827", "face": face, "bold": True}
+        return {"size": 22, "color": "#111827", "face": face}
     if weight >= p50:
-        return {"size": 15, "color": "#1F2937", "face": face}
+        return {"size": 16, "color": "#1F2937", "face": face}
     if weight >= p25:
-        return {"size": 12, "color": "#374151", "face": face}
-    return {"size": 10, "color": "#6B7280", "face": face}
+        return {"size": 13, "color": "#374151", "face": face}
+    return {"size": 11, "color": "#4B5563", "face": face}
 
 
 # ── PyVis HTML post-processing ────────────────────────────────────────────────
@@ -361,8 +361,7 @@ def _build_pyvis_network(
     for node in graph.nodes():
         data = graph.nodes[node]
         fill_hex = data.get("color_hex", COMMUNITY_COLORS[0])
-        # Slightly lighter shade for border — subtle VOSviewer ring
-        border_hex = lighten_hex(fill_hex, 0.20)
+        hover_hex = lighten_hex(fill_hex, 0.15)
         size = node_sizes.get(node, NODE_SIZE_MIN)
         weight = node_weights.get(node, 1)
         label = label_fn(node, data)
@@ -370,11 +369,12 @@ def _build_pyvis_network(
         shape = shape_fn(data) if shape_fn else "dot"
         font = _label_font(weight, p25, p50, p75, p90)
 
+        # borderWidth=0 prevents vis.js from drawing scaled border rings
         node_color = {
             "background": fill_hex,
-            "border": border_hex,
-            "highlight": {"background": lighten_hex(fill_hex, 0.30), "border": "#333333"},
-            "hover": {"background": lighten_hex(fill_hex, 0.15), "border": "#333333"},
+            "border": fill_hex,
+            "highlight": {"background": hover_hex, "border": hover_hex},
+            "hover": {"background": hover_hex, "border": hover_hex},
         }
 
         net.add_node(
@@ -384,8 +384,8 @@ def _build_pyvis_network(
             size=size,
             shape=shape,
             color=node_color,
-            borderWidth=1,
-            borderWidthSelected=2,
+            borderWidth=0,
+            borderWidthSelected=0,
             font=font,
         )
 
