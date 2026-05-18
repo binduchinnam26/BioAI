@@ -386,7 +386,7 @@ def _build_kg_html(
         data = graph.nodes[node]
         etype = data.get("entity_type", "UNKNOWN")
         fill_hex = ENTITY_TYPE_COLORS.get(etype, "#9CA3AF")
-        border_hex = lighten_hex(fill_hex, 0.20)
+        hover_hex = lighten_hex(fill_hex, 0.15)
         w = weights.get(node, 1)
         size = scale_node_size(w, w_min, w_max, NODE_SIZE_MIN, NODE_SIZE_MAX)
         label = truncate(str(node), 20)
@@ -394,9 +394,9 @@ def _build_kg_html(
         tooltip = _kg_node_tooltip(node, data, graph)
         node_color = {
             "background": fill_hex,
-            "border": border_hex,
-            "highlight": {"background": lighten_hex(fill_hex, 0.30), "border": "#333333"},
-            "hover": {"background": lighten_hex(fill_hex, 0.15), "border": "#333333"},
+            "border": fill_hex,
+            "highlight": {"background": hover_hex, "border": hover_hex},
+            "hover": {"background": hover_hex, "border": hover_hex},
         }
         net.add_node(
             str(node),
@@ -405,8 +405,8 @@ def _build_kg_html(
             size=size,
             shape="dot",
             color=node_color,
-            borderWidth=1,
-            borderWidthSelected=2,
+            borderWidth=0,
+            borderWidthSelected=0,
             font=font,
         )
 
