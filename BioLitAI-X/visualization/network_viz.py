@@ -17,7 +17,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import networkx as nx
 
 # Bump this whenever visualization styling changes to invalidate cached HTML.
-_VIZ_VERSION = "v20"
+_VIZ_VERSION = "v21"
 
 from config import (
     CANVAS_BG,
@@ -132,12 +132,19 @@ def get_physics_options(
         "nodes": {
             "chosen": False,
             "physics": True,
-            "borderWidth": 0,
-            "borderWidthSelected": 0,
+            "borderWidth": 2,
+            "borderWidthSelected": 3,
             "color": {
-                "border": "#FFFFFF",
-                "highlight": {"border": "#FFFFFF"},
-                "hover": {"border": "#FFFFFF"},
+                "border": "rgba(255,255,255,0.55)",
+                "highlight": {"border": "rgba(255,255,255,0.9)"},
+                "hover": {"border": "rgba(255,255,255,0.9)"},
+            },
+            "shadow": {
+                "enabled": True,
+                "color": "rgba(0,0,0,0.30)",
+                "size": 12,
+                "x": 2,
+                "y": 5,
             },
             "scaling": {
                 "min": node_scale_min,
@@ -270,37 +277,52 @@ _HIGHLIGHT_JS = """
 <script>
 var allNodes = network.body.data.nodes;
 var allEdges = network.body.data.edges;
+var _clickedNodeId = null;
 
+function _applyNeighbourHighlight(nodeId) {
+  var connectedNodes = new Set(network.getConnectedNodes(nodeId));
+  connectedNodes.add(nodeId);
+  var connectedEdges = new Set(network.getConnectedEdges(nodeId));
+  var nUp = [], eUp = [];
+  allNodes.getIds().forEach(function(id) {
+    nUp.push({ id: id, opacity: connectedNodes.has(id) ? 1.0 : 0.12 });
+  });
+  allNodes.update(nUp);
+  allEdges.getIds().forEach(function(id) {
+    eUp.push({ id: id, opacity: connectedEdges.has(id) ? 1.0 : 0.04 });
+  });
+  allEdges.update(eUp);
+}
+
+function _restoreAll() {
+  var nUp = allNodes.getIds().map(function(id) { return { id: id, opacity: 1.0 }; });
+  allNodes.update(nUp);
+  var eUp = allEdges.getIds().map(function(id) { return { id: id, opacity: 1.0 }; });
+  allEdges.update(eUp);
+}
+
+// Hover: highlight neighbourhood; skip when a node is already clicked.
+network.on('hoverNode', function(params) {
+  if (_clickedNodeId !== null) return;
+  _applyNeighbourHighlight(params.node);
+});
+
+// Mouse-out: restore unless a node is clicked.
+network.on('blurNode', function() {
+  if (_clickedNodeId !== null) return;
+  _restoreAll();
+});
+
+// Click a node: lock the highlight so hover doesn't override it.
+// Click canvas background: clear the lock and restore.
 network.on('click', function(params) {
   if (params.nodes.length === 0) {
-    // Click on empty canvas — restore full opacity
-    var nodeUpdates = [];
-    allNodes.getIds().forEach(function(id) {
-      nodeUpdates.push({ id: id, opacity: 1.0 });
-    });
-    allNodes.update(nodeUpdates);
-    var edgeUpdates = [];
-    allEdges.getIds().forEach(function(id) {
-      var e = allEdges.get(id);
-      edgeUpdates.push({ id: id, color: e._originalColor || e.color });
-    });
-    allEdges.update(edgeUpdates);
+    _clickedNodeId = null;
+    _restoreAll();
     return;
   }
-  var clickedId = params.nodes[0];
-  var connectedNodes = new Set(network.getConnectedNodes(clickedId));
-  connectedNodes.add(clickedId);
-  var nodeUpdates = [];
-  allNodes.getIds().forEach(function(id) {
-    nodeUpdates.push({ id: id, opacity: connectedNodes.has(id) ? 1.0 : 0.15 });
-  });
-  allNodes.update(nodeUpdates);
-  var connectedEdges = new Set(network.getConnectedEdges(clickedId));
-  var edgeUpdates = [];
-  allEdges.getIds().forEach(function(id) {
-    edgeUpdates.push({ id: id, opacity: connectedEdges.has(id) ? 1.0 : 0.05 });
-  });
-  allEdges.update(edgeUpdates);
+  _clickedNodeId = params.nodes[0];
+  _applyNeighbourHighlight(_clickedNodeId);
 });
 
 network.on('doubleClick', function(params) {
