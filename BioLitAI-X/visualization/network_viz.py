@@ -17,7 +17,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import networkx as nx
 
 # Bump this whenever visualization styling changes to invalidate cached HTML.
-_VIZ_VERSION = "v9"
+_VIZ_VERSION = "v10"
 
 from config import (
     CANVAS_BG,
@@ -42,7 +42,7 @@ from utils.helpers import (
 
 # ── Physics options ───────────────────────────────────────────────────────────
 
-def get_physics_options(node_count: int) -> Dict:
+def get_physics_options(node_count: int, navigation_buttons: bool = False) -> Dict:
     """
     VOSviewer-faithful physics: low central gravity lets communities
     separate; longer springs spread nodes out so labels have room.
@@ -88,7 +88,7 @@ def get_physics_options(node_count: int) -> Dict:
             "hideEdgesOnDrag": True,
             "hideEdgesOnZoom": False,
             "multiselect": True,
-            "navigationButtons": False,
+            "navigationButtons": navigation_buttons,
             "keyboard": {"enabled": False},
             "zoomView": True,
         },
@@ -379,6 +379,8 @@ def _build_pyvis_network(
     edge_tooltip_fn,
     directed: bool = False,
     shape_fn=None,
+    smooth_edges: bool = False,
+    navigation_buttons: bool = False,
 ) -> Any:
     """
     Build a PyVis Network object from a NetworkX graph with full
@@ -409,32 +411,51 @@ def _build_pyvis_network(
         # Use value= (not size=) so vis.js scaling.label fires and the
         # font size scales proportionally — this is what makes VOSviewer-
         # style dramatic label scaling work.
-        net.add_node(
-            node,
+        node_kwargs: Dict[str, Any] = dict(
             label=label,
             title=tooltip,
             value=float(weight),
             shape=shape,
             color=fill_hex,
         )
+        # Per-node font override (e.g. grey for within-cluster-only nodes)
+        if "font_color" in data:
+            node_kwargs["font"] = {
+                "color": data["font_color"],
+                "face": "Arial",
+                "strokeWidth": 3,
+                "strokeColor": "#FFFFFF",
+            }
+        net.add_node(node, **node_kwargs)
 
     for u, v in graph.edges():
-        src_color_hex = graph.nodes[u].get("color_hex", COMMUNITY_COLORS[0])
+        u_color = graph.nodes[u].get("color_hex", COMMUNITY_COLORS[0])
+        v_color = graph.nodes[v].get("color_hex", COMMUNITY_COLORS[0])
+        # Prefer the colored endpoint's color so cross-cluster edges stay vivid
+        grey = _COAUTH_GREY
+        edge_color_hex = v_color if u_color == grey and v_color != grey else u_color
         width = edge_widths.get((u, v), EDGE_WIDTH_MIN)
         edge_data = graph[u][v] if isinstance(graph, nx.Graph) else {}
         tooltip = edge_tooltip_fn(u, v, edge_data)
+        if smooth_edges:
+            smooth: Any = {"type": "dynamic", "roundness": 0.2}
+        elif directed:
+            smooth = {"type": "curvedCW", "roundness": 0.2}
+        else:
+            smooth = False
         # Plain rgba string — avoids dict serialisation issues
         net.add_edge(
             u, v,
             width=width,
-            color=hex_to_rgba(src_color_hex, 0.45),
+            color=hex_to_rgba(edge_color_hex, 0.45),
             title=tooltip,
             arrows="" if not directed else "to",
-            smooth=False if not directed else
-                {"type": "curvedCW", "roundness": 0.2},
+            smooth=smooth,
         )
 
-    physics_opts = get_physics_options(graph.number_of_nodes())
+    physics_opts = get_physics_options(
+        graph.number_of_nodes(), navigation_buttons=navigation_buttons
+    )
     net.set_options(json.dumps(physics_opts))
     return net
 
@@ -453,6 +474,20 @@ def _default_edge_tooltip(u, v, data) -> str:
 
 
 # ── A) Co-authorship network ──────────────────────────────────────────────────
+
+# Grey fill used for within-cluster-only authors in the co-authorship network
+_COAUTH_GREY = "#C0C0C0"
+
+
+def _compute_cross_cluster_nodes(graph: nx.Graph) -> set:
+    """Return node IDs that have at least one edge crossing cluster boundaries."""
+    cross: set = set()
+    for u, v in graph.edges():
+        if graph.nodes[u].get("community_id", 0) != graph.nodes[v].get("community_id", 0):
+            cross.add(u)
+            cross.add(v)
+    return cross
+
 
 def render_coauthorship_network(
     graph: nx.Graph,
@@ -499,6 +534,15 @@ def render_coauthorship_network(
         node_weights = {n: filtered.nodes[n].get("weight", 1)
                         for n in filtered.nodes()}
 
+        # VOSviewer coloring: authors with cross-cluster connections keep their
+        # cluster color; within-cluster-only authors are rendered in grey.
+        cross_cluster = _compute_cross_cluster_nodes(filtered)
+        viz_graph = filtered.copy()
+        for node in viz_graph.nodes():
+            if node not in cross_cluster:
+                viz_graph.nodes[node]["color_hex"] = _COAUTH_GREY
+                viz_graph.nodes[node]["font_color"] = "#999999"
+
         def label_fn(node, data):
             return format_author_short(str(node))
 
@@ -533,8 +577,9 @@ def render_coauthorship_network(
             return _wrap_tooltip(content)
 
         net = _build_pyvis_network(
-            filtered, node_sizes, edge_widths, node_weights,
+            viz_graph, node_sizes, edge_widths, node_weights,
             label_fn, tooltip_fn, _default_edge_tooltip,
+            smooth_edges=True, navigation_buttons=True,
         )
         if freeze:
             net.toggle_physics(False)
