@@ -17,7 +17,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import networkx as nx
 
 # Bump this whenever visualization styling changes to invalidate cached HTML.
-_VIZ_VERSION = "v17"
+_VIZ_VERSION = "v18"
 
 from config import (
     CANVAS_BG,
@@ -51,6 +51,7 @@ def get_physics_options(
     label_threshold: int = 1,
     node_scale_min: int = 30,
     node_scale_max: int = 150,
+    freeze_layout: bool = False,
 ) -> Dict:
     """
     Physics / styling options for vis.js.
@@ -81,7 +82,9 @@ def get_physics_options(
             "minVelocity": 0.5,
             "stabilization": {
                 "enabled": True,
-                "iterations": 1000,
+                # When positions are pre-computed, 1 iteration is enough to
+                # fire stabilizationIterationsDone (which triggers fit()).
+                "iterations": 1 if freeze_layout else 1000,
                 "updateInterval": 25,
                 "fit": True,
             },
@@ -401,6 +404,77 @@ def _render_controls(
 
 # ── Network rendering core ────────────────────────────────────────────────────
 
+def _compute_coauth_positions(graph: nx.Graph) -> Dict:
+    """
+    2-stage community-aware layout for the co-authorship network.
+
+    Stage 1 — macro: run spring_layout on a reduced community graph so each
+    community centroid is placed well away from the others.
+    Stage 2 — micro: run spring_layout on each community's subgraph, scaled
+    proportionally to cluster size, and offset by the centroid.
+
+    Returns dict[node -> (x, y)] in vis.js canvas pixels (origin at centre).
+    This eliminates browser-side physics entirely: vis.js just draws nodes at
+    the given positions, which removes the "tight ball" problem.
+    """
+    if graph.number_of_nodes() == 0:
+        return {}
+
+    # Group nodes by community
+    comms: Dict[int, list] = {}
+    for n in graph.nodes():
+        cid = graph.nodes[n].get("community_id", 0)
+        comms.setdefault(cid, []).append(n)
+    n_comms = len(comms)
+
+    # Stage 1: spring layout of community centroids
+    comm_g: nx.Graph = nx.Graph()
+    for cid in comms:
+        comm_g.add_node(cid)
+    for u, v in graph.edges():
+        cu = graph.nodes[u].get("community_id", 0)
+        cv = graph.nodes[v].get("community_id", 0)
+        if cu != cv:
+            if comm_g.has_edge(cu, cv):
+                comm_g[cu][cv]["weight"] = comm_g[cu][cv].get("weight", 0) + 1
+            else:
+                comm_g.add_edge(cu, cv, weight=1)
+
+    k_macro = max(3.0 / math.sqrt(max(n_comms, 1)), 0.4)
+    macro_pos = nx.spring_layout(comm_g, k=k_macro, iterations=150, seed=42, scale=1.0)
+
+    # Stage 2: spring layout within each community, offset by its centroid
+    positions: Dict = {}
+    for cid, nodes in comms.items():
+        cx, cy = macro_pos.get(cid, (0.0, 0.0))
+        if len(nodes) == 1:
+            positions[nodes[0]] = (cx, cy)
+            continue
+        subg = graph.subgraph(nodes)
+        n_sub = len(nodes)
+        micro_scale = 0.07 * math.sqrt(n_sub)
+        k_micro = 2.0 / math.sqrt(max(n_sub, 1))
+        micro_pos = nx.spring_layout(subg, k=k_micro, iterations=80, seed=42, scale=micro_scale)
+        for node, (mx, my) in micro_pos.items():
+            positions[node] = (cx + mx, cy + my)
+
+    # Normalise to vis.js canvas coords: origin at centre, ±900 × ±650 px
+    xs = [p[0] for p in positions.values()]
+    ys = [p[1] for p in positions.values()]
+    x_lo, x_hi = min(xs), max(xs)
+    y_lo, y_hi = min(ys), max(ys)
+    rx = max(x_hi - x_lo, 1e-9)
+    ry = max(y_hi - y_lo, 1e-9)
+    half_w, half_h = 900.0, 650.0
+    margin = 0.07
+    result: Dict = {}
+    for n, (x, y) in positions.items():
+        px = ((x - x_lo) / rx * (1 - 2 * margin) + margin) * 2 * half_w - half_w
+        py = ((y - y_lo) / ry * (1 - 2 * margin) + margin) * 2 * half_h - half_h
+        result[n] = (px, py)
+    return result
+
+
 def _build_pyvis_network(
     graph: nx.Graph,
     node_sizes: Dict,
@@ -419,10 +493,14 @@ def _build_pyvis_network(
     label_threshold: int = 1,
     node_scale_min: int = 30,
     node_scale_max: int = 150,
+    initial_positions: Optional[Dict] = None,
 ) -> Any:
     """
     Build a PyVis Network object from a NetworkX graph with full
     VOSviewer-faithful styling applied.
+
+    When initial_positions is provided (dict node->(x,y)), each node is placed
+    at its pre-computed position with physics=False so vis.js skips simulation.
     """
     try:
         from pyvis.network import Network
@@ -464,6 +542,12 @@ def _build_pyvis_network(
                 "strokeWidth": 3,
                 "strokeColor": "#FFFFFF",
             }
+        # Pre-computed position: pin this node, skip physics for it
+        if initial_positions is not None and node in initial_positions:
+            px, py = initial_positions[node]
+            node_kwargs["x"] = px
+            node_kwargs["y"] = py
+            node_kwargs["physics"] = False
         net.add_node(node, **node_kwargs)
 
     for u, v in graph.edges():
@@ -503,6 +587,7 @@ def _build_pyvis_network(
         label_threshold=label_threshold,
         node_scale_min=node_scale_min,
         node_scale_max=node_scale_max,
+        freeze_layout=(initial_positions is not None),
     )
     net.set_options(json.dumps(physics_opts))
     return net
@@ -662,17 +747,18 @@ def render_coauthorship_network(
             )
             return _wrap_tooltip(content)
 
+        # Pre-compute the layout in Python (2-stage community-aware spring
+        # layout).  Positions are injected as x/y per node so vis.js just
+        # draws them — no browser physics, no ball collapse.
+        coauth_positions = _compute_coauth_positions(viz_graph)
+
         net = _build_pyvis_network(
             viz_graph, node_sizes, edge_widths, node_weights,
             label_fn, tooltip_fn, _default_edge_tooltip,
             smooth_edges=True, navigation_buttons=True, layout_spread=True,
-            # Node radius range matching VOSviewer proportions.
-            # min=10 → peripheral dots ~6.5px on screen at 0.65× zoom (visible)
-            # max=55 → hub authors ~36px on screen (prominent, labelled)
             node_scale_min=10, node_scale_max=55,
-            # Label range to match node scale; threshold=1 lets label_fn
-            # decide visibility (grey nodes get "" explicitly).
             label_min=14, label_max=52, label_threshold=1,
+            initial_positions=coauth_positions,
         )
         if freeze:
             net.toggle_physics(False)
