@@ -17,7 +17,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import networkx as nx
 
 # Bump this whenever visualization styling changes to invalidate cached HTML.
-_VIZ_VERSION = "v19"
+_VIZ_VERSION = "v20"
 
 from config import (
     CANVAS_BG,
@@ -419,14 +419,14 @@ def _compute_coauth_positions(graph: nx.Graph) -> Dict:
     """
     2-stage community-aware layout for the co-authorship network.
 
-    Stage 1 — macro: run spring_layout on a reduced community graph so each
-    community centroid is placed well away from the others.
-    Stage 2 — micro: run spring_layout on each community's subgraph, scaled
-    proportionally to cluster size, and offset by the centroid.
+    Stage 1 — macro: spring layout on the reduced community graph places each
+    community centroid well away from the others (k proportional to 1/sqrt(n)).
+    Stage 2 — micro: spring layout within each community subgraph, with a scale
+    capped so the cluster radius is always smaller than the inter-cluster gap.
 
     Returns dict[node -> (x, y)] in vis.js canvas pixels (origin at centre).
-    This eliminates browser-side physics entirely: vis.js just draws nodes at
-    the given positions, which removes the "tight ball" problem.
+    Positions are injected as x/y/physics=False per node; vis.js draws without
+    running any physics simulation so there is no ball-collapse.
     """
     if graph.number_of_nodes() == 0:
         return {}
@@ -438,7 +438,8 @@ def _compute_coauth_positions(graph: nx.Graph) -> Dict:
         comms.setdefault(cid, []).append(n)
     n_comms = len(comms)
 
-    # Stage 1: spring layout of community centroids
+    # Stage 1: spring layout of community centroids.
+    # k_macro = 5/sqrt(n) gives strong spread; scale=1 normalises to [-1,1].
     comm_g: nx.Graph = nx.Graph()
     for cid in comms:
         comm_g.add_node(cid)
@@ -451,10 +452,18 @@ def _compute_coauth_positions(graph: nx.Graph) -> Dict:
             else:
                 comm_g.add_edge(cu, cv, weight=1)
 
-    k_macro = max(3.0 / math.sqrt(max(n_comms, 1)), 0.4)
-    macro_pos = nx.spring_layout(comm_g, k=k_macro, iterations=150, seed=42, scale=1.0)
+    k_macro = 5.0 / math.sqrt(max(n_comms, 1))
+    macro_pos = nx.spring_layout(
+        comm_g, k=k_macro, iterations=300, seed=42, scale=1.0,
+        weight=None,  # ignore edge weights for uniform separation
+    )
 
-    # Stage 2: spring layout within each community, offset by its centroid
+    # Estimated typical inter-community gap in [-1,1] space: 2/sqrt(n_comms).
+    # Cap micro_scale to at most 35 % of that gap so clusters never overlap.
+    inter_gap = 2.0 / math.sqrt(max(n_comms, 1))
+    max_micro = inter_gap * 0.35
+
+    # Stage 2: spring layout within each community, offset by its centroid.
     positions: Dict = {}
     for cid, nodes in comms.items():
         cx, cy = macro_pos.get(cid, (0.0, 0.0))
@@ -463,21 +472,24 @@ def _compute_coauth_positions(graph: nx.Graph) -> Dict:
             continue
         subg = graph.subgraph(nodes)
         n_sub = len(nodes)
-        micro_scale = 0.07 * math.sqrt(n_sub)
+        # micro_scale grows with cluster size but is hard-capped.
+        micro_scale = min(0.012 * math.sqrt(n_sub), max_micro)
         k_micro = 2.0 / math.sqrt(max(n_sub, 1))
         micro_pos = nx.spring_layout(subg, k=k_micro, iterations=80, seed=42, scale=micro_scale)
         for node, (mx, my) in micro_pos.items():
             positions[node] = (cx + mx, cy + my)
 
-    # Normalise to vis.js canvas coords: origin at centre, ±900 × ±650 px
+    # Normalise to vis.js canvas coords: origin at centre.
+    # Larger canvas (±1200 × ±950 px) = more spread at fit-to-screen zoom,
+    # making cluster groups visually distinct without zooming.
     xs = [p[0] for p in positions.values()]
     ys = [p[1] for p in positions.values()]
     x_lo, x_hi = min(xs), max(xs)
     y_lo, y_hi = min(ys), max(ys)
     rx = max(x_hi - x_lo, 1e-9)
     ry = max(y_hi - y_lo, 1e-9)
-    half_w, half_h = 900.0, 650.0
-    margin = 0.07
+    half_w, half_h = 1200.0, 950.0
+    margin = 0.05
     result: Dict = {}
     for n, (x, y) in positions.items():
         px = ((x - x_lo) / rx * (1 - 2 * margin) + margin) * 2 * half_w - half_w
