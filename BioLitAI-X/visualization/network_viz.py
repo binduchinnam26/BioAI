@@ -17,7 +17,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import networkx as nx
 
 # Bump this whenever visualization styling changes to invalidate cached HTML.
-_VIZ_VERSION = "v12"
+_VIZ_VERSION = "v13"
 
 from config import (
     CANVAS_BG,
@@ -71,9 +71,18 @@ def get_physics_options(
         central = 0.10
 
     if layout_spread:
-        # Pull nodes apart: weaker central gravity, longer springs
+        # Pull nodes apart: weaker central gravity, longer springs.
+        # Pair with higher damping + lower iteration cap so the simulation
+        # converges quickly despite the looser force balance.
         central = 0.02
-        spring = max(spring, 200)
+        spring = max(spring, 180)
+        damping = 0.40       # default 0.18 → faster velocity decay
+        min_vel = 2.0        # default 0.5  → stop sooner
+        iterations = 800     # default 1500 → fewer steps needed
+    else:
+        damping = 0.18
+        min_vel = 0.5
+        iterations = 1500
 
     return {
         "physics": {
@@ -83,14 +92,14 @@ def get_physics_options(
                 "centralGravity": central,
                 "springLength": spring,
                 "springConstant": 0.04,
-                "damping": 0.18,
+                "damping": damping,
                 "avoidOverlap": 1.0,
             },
             "maxVelocity": 50,
-            "minVelocity": 0.5,
+            "minVelocity": min_vel,
             "stabilization": {
                 "enabled": True,
-                "iterations": 1500,
+                "iterations": iterations,
                 "updateInterval": 25,
                 "fit": True,
             },
@@ -456,7 +465,10 @@ def _build_pyvis_network(
         edge_data = graph[u][v] if isinstance(graph, nx.Graph) else {}
         tooltip = edge_tooltip_fn(u, v, edge_data)
         if smooth_edges:
-            smooth: Any = {"type": "dynamic", "roundness": 0.2}
+            # "curvedCW" curves are pre-computed once at layout time.
+            # "dynamic" curves recalculate every physics frame (O(E) per step)
+            # which multiplied 1500 iterations × 3000+ edges → slow render.
+            smooth: Any = {"type": "curvedCW", "roundness": 0.15}
         elif directed:
             smooth = {"type": "curvedCW", "roundness": 0.2}
         else:
