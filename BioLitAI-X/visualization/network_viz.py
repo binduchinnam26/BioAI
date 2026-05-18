@@ -139,12 +139,27 @@ def _compute_edge_widths(graph: nx.Graph) -> Dict[Tuple, float]:
 
 # ── Label visibility ──────────────────────────────────────────────────────────
 
-def _label_font(weight: float, p50: float, p75: float) -> Dict:
+def _label_font(
+    weight: float,
+    p25: float,
+    p50: float,
+    p75: float,
+    p90: float,
+) -> Dict:
+    """
+    VOSviewer-style dramatic font scaling: top nodes get large text,
+    all nodes remain visible (no transparent labels).
+    """
+    face = "Arial, sans-serif"
+    if weight >= p90:
+        return {"size": 30, "color": "#FFFFFF", "face": face}
     if weight >= p75:
-        return {"size": 13, "color": "#D1D5DB"}
+        return {"size": 20, "color": "#FFFFFF", "face": face}
     if weight >= p50:
-        return {"size": 11, "color": "#9CA3AF"}
-    return {"size": 10, "color": "rgba(0,0,0,0)"}
+        return {"size": 14, "color": "#E5E7EB", "face": face}
+    if weight >= p25:
+        return {"size": 11, "color": "#D1D5DB", "face": face}
+    return {"size": 9, "color": "#9CA3AF", "face": face}
 
 
 # ── PyVis HTML post-processing ────────────────────────────────────────────────
@@ -327,34 +342,36 @@ def _build_pyvis_network(
         raise ImportError("pyvis is not installed. Run: pip install pyvis") from exc
 
     w_list = list(node_weights.values())
+    p25 = percentile(w_list, 25) if w_list else 1.0
     p50 = percentile(w_list, 50) if w_list else 1.0
     p75 = percentile(w_list, 75) if w_list else 1.0
+    p90 = percentile(w_list, 90) if w_list else 1.0
 
     net = Network(
         height="850px",
         width="100%",
         directed=directed,
         bgcolor=CANVAS_BG,
-        font_color="#D1D5DB",
+        font_color="#FFFFFF",
     )
     net.toggle_physics(True)
 
     for node in graph.nodes():
         data = graph.nodes[node]
         fill_hex = data.get("color_hex", COMMUNITY_COLORS[0])
-        border_hex = lighten_hex(fill_hex, 0.30)
         size = node_sizes.get(node, NODE_SIZE_MIN)
         weight = node_weights.get(node, 1)
         label = label_fn(node, data)
         tooltip = tooltip_fn(node, data, graph)
         shape = shape_fn(data) if shape_fn else "dot"
-        font = _label_font(weight, p50, p75)
+        font = _label_font(weight, p25, p50, p75, p90)
 
+        # Borderless VOSviewer-style nodes: border matches fill
         node_color = {
             "background": fill_hex,
-            "border": border_hex,
-            "highlight": {"background": fill_hex, "border": "#FFFFFF"},
-            "hover": {"background": fill_hex, "border": "#FFFFFF"},
+            "border": fill_hex,
+            "highlight": {"background": lighten_hex(fill_hex, 0.25), "border": "#FFFFFF"},
+            "hover": {"background": lighten_hex(fill_hex, 0.15), "border": fill_hex},
         }
 
         net.add_node(
@@ -364,17 +381,18 @@ def _build_pyvis_network(
             size=size,
             shape=shape,
             color=node_color,
-            borderWidth=2,
+            borderWidth=0,
+            borderWidthSelected=2,
             font=font,
         )
 
     for u, v in graph.edges():
-        src_community = graph.nodes[u].get("community_id", 0)
         src_color_hex = graph.nodes[u].get("color_hex", COMMUNITY_COLORS[0])
+        # VOSviewer-style: very thin, lightly opaque edges
         edge_color = {
-            "color": hex_to_rgba(src_color_hex, 0.25),
-            "highlight": hex_to_rgba(src_color_hex, 0.90),
-            "hover": hex_to_rgba(src_color_hex, 0.70),
+            "color": hex_to_rgba(src_color_hex, 0.18),
+            "highlight": hex_to_rgba(src_color_hex, 0.85),
+            "hover": hex_to_rgba(src_color_hex, 0.60),
         }
         width = edge_widths.get((u, v), EDGE_WIDTH_MIN)
         edge_data = graph[u][v] if isinstance(graph, nx.Graph) else {}
