@@ -33,6 +33,36 @@ if _CSS_PATH.exists():
     with open(_CSS_PATH, "r", encoding="utf-8") as _f:
         st.markdown(f"<style>{_f.read()}</style>", unsafe_allow_html=True)
 
+# ── Ensure sidebar is expanded on every load ───────────────────────────────
+# Clicks the collapsed-control button programmatically if the sidebar is
+# not already open, covering cases where CSS transform overrides aren't
+# enough (e.g. Streamlit manages state in localStorage).
+st.markdown(
+    """
+    <script>
+    (function() {
+      function _ensureSidebar() {
+        var sidebar = document.querySelector('[data-testid="stSidebar"]');
+        if (!sidebar) return;
+        var rect = sidebar.getBoundingClientRect();
+        // Sidebar is off-screen (collapsed) if its right edge <= 0
+        if (rect.right <= 0 || rect.width < 10) {
+          var btn = document.querySelector(
+            '[data-testid="stSidebarCollapsedControl"] button, ' +
+            '[data-testid="collapsedControl"] button'
+          );
+          if (btn) btn.click();
+        }
+      }
+      // Run after DOM settles
+      setTimeout(_ensureSidebar, 300);
+      setTimeout(_ensureSidebar, 800);
+    })();
+    </script>
+    """,
+    unsafe_allow_html=True,
+)
+
 # ── Initialise session state defaults ──────────────────────────────────────
 _DEFAULTS = {
     "current_page": "Home",
