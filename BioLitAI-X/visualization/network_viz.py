@@ -17,7 +17,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import networkx as nx
 
 # Bump this whenever visualization styling changes to invalidate cached HTML.
-_VIZ_VERSION = "v31"
+_VIZ_VERSION = "v32"
 
 from config import (
     CANVAS_BG,
@@ -532,9 +532,6 @@ def _compute_coauth_positions(graph: nx.Graph) -> Dict:
     )
 
     # Stage 2: micro layout — place nodes within each community.
-    inter_gap = 2.0 / math.sqrt(max(n_comms, 1))
-    max_micro = inter_gap * 0.44
-
     positions: Dict = {}
     for cid, nodes in comms.items():
         cx, cy = macro_pos.get(cid, (0.0, 0.0))
@@ -543,8 +540,8 @@ def _compute_coauth_positions(graph: nx.Graph) -> Dict:
             continue
         subg = graph.subgraph(nodes)
         n_sub = len(nodes)
-        micro_scale = min(0.025 * math.sqrt(n_sub), max_micro)
-        k_micro = 1.2 / math.sqrt(max(n_sub, 1))
+        micro_scale = 0.042 * math.sqrt(n_sub)
+        k_micro = 0.9 / math.sqrt(max(n_sub, 1))
         micro_pos = nx.spring_layout(
             subg, k=k_micro, iterations=100, seed=42, scale=micro_scale
         )
@@ -559,7 +556,7 @@ def _compute_coauth_positions(graph: nx.Graph) -> Dict:
     y_lo, y_hi = min(ys), max(ys)
     rx = max(x_hi - x_lo, 1e-9)
     ry = max(y_hi - y_lo, 1e-9)
-    half_w, half_h = 7000.0, 5600.0
+    half_w, half_h = 10000.0, 8000.0
     margin = 0.04
     result: Dict = {}
     for n, (x, y) in positions.items():
@@ -821,7 +818,7 @@ def render_coauthorship_network(
         # nodes (VOSviewer effect) while peripheral nodes stay small.
         raw_weights = {n: max(filtered.degree(n), 1) ** 1.5 for n in filtered.nodes()}
         max_raw = max(raw_weights.values(), default=1)
-        node_weights = {n: 1 + (w / max_raw) * 99 for n, w in raw_weights.items()}
+        node_weights = {n: 15 + (w / max_raw) * 85 for n, w in raw_weights.items()}
 
         # Build cross-cluster colored node set; nodes with only intra-cluster
         # edges are grey.
@@ -861,14 +858,18 @@ def render_coauthorship_network(
             # Per-node font: dramatically scale font size by degree (VOSviewer style)
             deg = filtered.degree(node)
             # Map degree to font size: peripheral=11px, hub=48px
-            t = (deg / max(max_deg, 1)) ** 0.6
-            font_size = int(14 + t * 58)  # range: 14px to 72px
-            font_color = "#666666" if is_grey else "#111827"
+            t = (deg / max(max_deg, 1)) ** 0.5
+            # Scale from 28px (leaf) to 120px (hub) in canvas units.
+            # These are canvas-space pixels — they appear smaller when
+            # zoomed out to fit-to-screen, so we use large values so
+            # they remain legible at the default fit-to-screen zoom.
+            font_size = int(28 + t * 92)  # range: 28 to 120 canvas px
+            font_color = "#888888" if is_grey else "#111827"
             viz_graph.nodes[node]["vis_font"] = {
                 "color": font_color,
                 "size": font_size,
                 "face": "Arial, sans-serif",
-                "strokeWidth": 4,
+                "strokeWidth": 5,
                 "strokeColor": "#FFFFFF",
             }
 
@@ -910,8 +911,8 @@ def render_coauthorship_network(
             viz_graph, node_sizes, edge_widths, node_weights,
             label_fn, tooltip_fn, _default_edge_tooltip,
             smooth_edges=True, navigation_buttons=True, layout_spread=True,
-            node_scale_min=12, node_scale_max=150,
-            label_min=14, label_max=72, label_threshold=1,
+            node_scale_min=15, node_scale_max=180,
+            label_min=28, label_max=120, label_threshold=1,
             initial_positions=positions,
         )
         if freeze:
