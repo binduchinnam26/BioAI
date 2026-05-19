@@ -17,7 +17,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import networkx as nx
 
 # Bump this whenever visualization styling changes to invalidate cached HTML.
-_VIZ_VERSION = "v34"
+_VIZ_VERSION = "v36"
 
 from config import (
     CANVAS_BG,
@@ -162,8 +162,9 @@ def get_physics_options(
             },
             "font": {
                 "face": "Arial, sans-serif",
-                "strokeWidth": 3,
+                "strokeWidth": 4,
                 "strokeColor": "#FFFFFF",
+                "align": "center",
             },
         },
         "edges": {
@@ -532,6 +533,7 @@ def _compute_coauth_positions(graph: nx.Graph) -> Dict:
     )
 
     # Stage 2: micro layout — place nodes within each community.
+    inter_gap = 2.0 / math.sqrt(max(n_comms, 1))
     positions: Dict = {}
     for cid, nodes in comms.items():
         cx, cy = macro_pos.get(cid, (0.0, 0.0))
@@ -540,8 +542,8 @@ def _compute_coauth_positions(graph: nx.Graph) -> Dict:
             continue
         subg = graph.subgraph(nodes)
         n_sub = len(nodes)
-        micro_scale = 0.042 * math.sqrt(n_sub)
-        k_micro = 0.9 / math.sqrt(max(n_sub, 1))
+        micro_scale = min(0.020 * math.sqrt(n_sub), inter_gap * 0.30)
+        k_micro = 0.8 / math.sqrt(max(n_sub, 1))
         micro_pos = nx.spring_layout(
             subg, k=k_micro, iterations=100, seed=42, scale=micro_scale
         )
@@ -859,18 +861,15 @@ def render_coauthorship_network(
             deg = filtered.degree(node)
             # Map degree to font size: peripheral=11px, hub=48px
             t = (deg / max(max_deg, 1)) ** 0.5
-            # Scale from 28px (leaf) to 120px (hub) in canvas units.
-            # These are canvas-space pixels — they appear smaller when
-            # zoomed out to fit-to-screen, so we use large values so
-            # they remain legible at the default fit-to-screen zoom.
-            font_size = int(28 + t * 92)  # range: 28 to 120 canvas px
-            font_color = "#888888" if is_grey else "#111827"
+            font_size = int(14 + t * 46)  # 14 to 60 canvas px — safe range
+            font_color = "#555555" if is_grey else "#000000"
             viz_graph.nodes[node]["vis_font"] = {
                 "color": font_color,
                 "size": font_size,
                 "face": "Arial, sans-serif",
-                "strokeWidth": 5,
+                "strokeWidth": 4,
                 "strokeColor": "#FFFFFF",
+                "vadjust": 0,
             }
 
         def label_fn(node, data):
@@ -912,7 +911,7 @@ def render_coauthorship_network(
             label_fn, tooltip_fn, _default_edge_tooltip,
             smooth_edges=True, navigation_buttons=True, layout_spread=True,
             node_scale_min=35, node_scale_max=350,
-            label_min=28, label_max=120, label_threshold=1,
+            label_min=14, label_max=60, label_threshold=1,
             initial_positions=positions,
         )
         if freeze:
