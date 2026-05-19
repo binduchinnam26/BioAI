@@ -17,7 +17,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import networkx as nx
 
 # Bump this whenever visualization styling changes to invalidate cached HTML.
-_VIZ_VERSION = "v24"
+_VIZ_VERSION = "v25"
 
 from config import (
     CANVAS_BG,
@@ -63,26 +63,27 @@ def get_physics_options(
     """
     if layout_spread:
         if freeze_layout:
-            # Positions are pre-computed; no physics needed at all.
-            # _COAUTH_STABILIZE_JS uses setTimeout for the fit() call.
             physics_section = {"enabled": False}
         else:
+            # forceAtlas2Based tuned to scatter clusters organically —
+            # low centralGravity prevents ring arrangement, high damping
+            # prevents ball collapse, avoidOverlap=1 prevents node stacking.
             physics_section = {
                 "enabled": True,
                 "solver": "forceAtlas2Based",
                 "forceAtlas2Based": {
-                    "gravitationalConstant": -400,
-                    "centralGravity": 0.005,
-                    "springLength": 220,
-                    "springConstant": 0.04,
-                    "damping": 0.4,
-                    "avoidOverlap": 0.5,
+                    "gravitationalConstant": -80,
+                    "centralGravity": 0.003,
+                    "springLength": 200,
+                    "springConstant": 0.05,
+                    "damping": 0.9,
+                    "avoidOverlap": 1,
                 },
                 "maxVelocity": 80,
-                "minVelocity": 0.5,
+                "minVelocity": 0.75,
                 "stabilization": {
                     "enabled": True,
-                    "iterations": 1000,
+                    "iterations": 400,
                     "updateInterval": 25,
                     "fit": True,
                 },
@@ -117,7 +118,7 @@ def get_physics_options(
             "timestep": 0.4,
         }
 
-    return {
+    opts: Dict = {
         "physics": physics_section,
         "interaction": {
             "hover": True,
@@ -159,7 +160,7 @@ def get_physics_options(
             },
             "font": {
                 "color": "#111827",
-                "face": "Arial",
+                "face": "Inter, Arial, sans-serif",
                 "strokeWidth": 4,
                 "strokeColor": "#FFFFFF",
             },
@@ -167,10 +168,22 @@ def get_physics_options(
         "edges": {
             "chosen": False,
             "physics": True,
+            "width": 0.8,
             "hoverWidth": 2.5,
             "selectionWidth": 3.0,
+            "scaling": {"min": 0.5, "max": 4},
+            "color": {"opacity": 0.35},
         },
     }
+    # improvedLayout uses Kamada-Kawai for initial placement before physics
+    # runs, which prevents the circular-ring initialization that spring/random
+    # layouts produce when community clusters have no inter-cluster edges.
+    if layout_spread and not freeze_layout:
+        opts["layout"] = {
+            "improvedLayout": True,
+            "hierarchical": {"enabled": False},
+        }
+    return opts
 
 
 # ── Tooltip container style ───────────────────────────────────────────────────
@@ -246,16 +259,7 @@ _STABILIZE_JS = """
 <script>
 network.once('stabilizationIterationsDone', function() {
   network.setOptions({ physics: { enabled: false } });
-  // Fit all nodes, then enforce a minimum zoom so labels remain readable.
-  // Without this, 400+ node networks zoom to ~0.07x making text invisible.
-  network.fit({ animation: false });
-  var scale = network.getScale();
-  if (scale < 0.45) {
-    network.moveTo({
-      scale: 0.45,
-      animation: { duration: 400, easingFunction: 'easeInOutQuad' }
-    });
-  }
+  network.fit({ animation: { duration: 600, easingFunction: 'easeInOutQuad' } });
 });
 </script>
 """
@@ -607,8 +611,8 @@ def _build_pyvis_network(
         )
         # Per-node border width when a full color dict is provided
         if isinstance(vis_color, dict):
-            node_kwargs["borderWidth"] = 1
-            node_kwargs["borderWidthSelected"] = 2
+            node_kwargs["borderWidth"] = 1.5
+            node_kwargs["borderWidthSelected"] = 2.5
         # Per-node font override (e.g. grey for within-cluster-only nodes)
         if "font_color" in data:
             node_kwargs["font"] = {
@@ -835,26 +839,20 @@ def render_coauthorship_network(
             )
             return _wrap_tooltip(content)
 
-        # Pre-compute the layout in Python (2-stage community-aware spring
-        # layout).  Positions are injected as x/y per node so vis.js just
-        # draws them — no browser physics, no ball collapse.
-        coauth_positions = _compute_coauth_positions(viz_graph)
-
+        # Let vis.js forceAtlas2Based + improvedLayout handle placement.
+        # improvedLayout (Kamada-Kawai pre-pass) prevents the circular ring
+        # that NetworkX spring_layout produces for disconnected communities.
         net = _build_pyvis_network(
             viz_graph, node_sizes, edge_widths, node_weights,
             label_fn, tooltip_fn, _default_edge_tooltip,
             smooth_edges=True, navigation_buttons=True, layout_spread=True,
-            node_scale_min=10, node_scale_max=55,
-            label_min=14, label_max=52, label_threshold=1,
-            initial_positions=coauth_positions,
+            node_scale_min=8, node_scale_max=40,
+            label_min=11, label_max=48, label_threshold=1,
+            initial_positions=None,
         )
         if freeze:
             net.toggle_physics(False)
         html = _pyvis_to_html(net, filtered.number_of_nodes())
-        # Physics is disabled (pre-computed positions). Swap the
-        # stabilizationIterationsDone handler (which never fires without
-        # physics) for a plain setTimeout-based fit.
-        html = html.replace(_STABILIZE_JS, _COAUTH_STABILIZE_JS)
         st.session_state[cache_key] = html
     else:
         html = st.session_state[cache_key]
