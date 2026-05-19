@@ -17,7 +17,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import networkx as nx
 
 # Bump this whenever visualization styling changes to invalidate cached HTML.
-_VIZ_VERSION = "v23"
+_VIZ_VERSION = "v24"
 
 from config import (
     CANVAS_BG,
@@ -265,11 +265,23 @@ network.once('stabilizationIterationsDone', function() {
 # we use a plain setTimeout to fit the view after the first draw.
 _COAUTH_STABILIZE_JS = """
 <script>
+// Physics is disabled (pre-computed positions). stabilizationIterationsDone
+// never fires, so use setTimeout to fit all nodes into the viewport.
 setTimeout(function() {
-  network.fit({ animation: false });
-  var scale = network.getScale();
-  if (scale > 0.85) { network.moveTo({ scale: 0.85, animation: false }); }
-}, 200);
+  network.fit({ animation: { duration: 300, easingFunction: 'easeInOutQuad' } });
+}, 250);
+// Wire the "Fit to Screen" navigation button (if visible) to network.fit()
+setTimeout(function() {
+  var btn = document.querySelector('[title="Fit all nodes"]') ||
+            document.querySelector('[title="fit all"]') ||
+            document.querySelector('.vis-button.vis-zoomExtends');
+  if (btn) {
+    btn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      network.fit({ animation: { duration: 400, easingFunction: 'easeInOutQuad' } });
+    });
+  }
+}, 400);
 </script>
 """
 
@@ -484,16 +496,17 @@ def _compute_coauth_positions(graph: nx.Graph) -> Dict:
             else:
                 comm_g.add_edge(cu, cv, weight=1)
 
-    k_macro = 5.0 / math.sqrt(max(n_comms, 1))
+    # Stronger k_macro gives more spread between community centroids.
+    k_macro = 8.0 / math.sqrt(max(n_comms, 1))
     macro_pos = nx.spring_layout(
-        comm_g, k=k_macro, iterations=300, seed=42, scale=1.0,
+        comm_g, k=k_macro, iterations=500, seed=42, scale=1.0,
         weight=None,  # ignore edge weights for uniform separation
     )
 
     # Estimated typical inter-community gap in [-1,1] space: 2/sqrt(n_comms).
-    # Cap micro_scale to at most 35 % of that gap so clusters never overlap.
+    # Cap micro_scale to at most 40 % of that gap so clusters never overlap.
     inter_gap = 2.0 / math.sqrt(max(n_comms, 1))
-    max_micro = inter_gap * 0.35
+    max_micro = inter_gap * 0.40
 
     # Stage 2: spring layout within each community, offset by its centroid.
     positions: Dict = {}
@@ -505,22 +518,22 @@ def _compute_coauth_positions(graph: nx.Graph) -> Dict:
         subg = graph.subgraph(nodes)
         n_sub = len(nodes)
         # micro_scale grows with cluster size but is hard-capped.
-        micro_scale = min(0.012 * math.sqrt(n_sub), max_micro)
+        micro_scale = min(0.015 * math.sqrt(n_sub), max_micro)
         k_micro = 2.0 / math.sqrt(max(n_sub, 1))
         micro_pos = nx.spring_layout(subg, k=k_micro, iterations=80, seed=42, scale=micro_scale)
         for node, (mx, my) in micro_pos.items():
             positions[node] = (cx + mx, cy + my)
 
     # Normalise to vis.js canvas coords: origin at centre.
-    # Larger canvas (±1200 × ±950 px) = more spread at fit-to-screen zoom,
-    # making cluster groups visually distinct without zooming.
+    # Larger canvas (±2000 × ±1600 px) gives more spread at fit-to-screen,
+    # making cluster groups visually distinct without needing to zoom in.
     xs = [p[0] for p in positions.values()]
     ys = [p[1] for p in positions.values()]
     x_lo, x_hi = min(xs), max(xs)
     y_lo, y_hi = min(ys), max(ys)
     rx = max(x_hi - x_lo, 1e-9)
     ry = max(y_hi - y_lo, 1e-9)
-    half_w, half_h = 1200.0, 950.0
+    half_w, half_h = 2000.0, 1600.0
     margin = 0.05
     result: Dict = {}
     for n, (x, y) in positions.items():
@@ -582,13 +595,20 @@ def _build_pyvis_network(
         # Use value= (not size=) so vis.js scaling.label fires and the
         # font size scales proportionally — this is what makes VOSviewer-
         # style dramatic label scaling work.
+        # Per-node vis_color dict (rgba semi-transparent) takes priority over
+        # the plain hex string so coauth nodes get proper rgba borders/fills.
+        vis_color = data.get("vis_color", fill_hex)
         node_kwargs: Dict[str, Any] = dict(
             label=label,
             title=tooltip,
             value=float(weight),
             shape=shape,
-            color=fill_hex,
+            color=vis_color,
         )
+        # Per-node border width when a full color dict is provided
+        if isinstance(vis_color, dict):
+            node_kwargs["borderWidth"] = 1
+            node_kwargs["borderWidthSelected"] = 2
         # Per-node font override (e.g. grey for within-cluster-only nodes)
         if "font_color" in data:
             node_kwargs["font"] = {
@@ -664,7 +684,7 @@ def _default_edge_tooltip(u, v, data) -> str:
 # ── A) Co-authorship network ──────────────────────────────────────────────────
 
 # Grey fill used for within-cluster-only authors in the co-authorship network
-_COAUTH_GREY = "#C0C0C0"
+_COAUTH_GREY = "#969696"
 
 
 def _compute_colored_nodes_coauth(graph: nx.Graph) -> set:
@@ -762,14 +782,27 @@ def render_coauthorship_network(
         # isolated/peripheral authors are rendered in grey.
         colored_nodes = _compute_colored_nodes_coauth(filtered)
         viz_graph = filtered.copy()
+
+        def _make_vis_color(fill_hex: str, alpha_fill: float = 0.65) -> dict:
+            """Build a vis.js per-node color dict with semi-transparent rgba fills."""
+            alpha_border = min(alpha_fill + 0.25, 1.0)
+            bg   = hex_to_rgba(fill_hex, alpha_fill)
+            brd  = hex_to_rgba(fill_hex, alpha_border)
+            return {
+                "background": bg,
+                "border": brd,
+                "highlight": {"background": hex_to_rgba(fill_hex, 0.90), "border": brd},
+                "hover":     {"background": hex_to_rgba(fill_hex, 0.80), "border": brd},
+            }
+
         for node in viz_graph.nodes():
             if node not in colored_nodes:
                 viz_graph.nodes[node]["color_hex"] = _COAUTH_GREY
-                viz_graph.nodes[node]["font_color"] = "#999999"
+                viz_graph.nodes[node]["font_color"] = "#6B7280"
+            fill = viz_graph.nodes[node].get("color_hex", COMMUNITY_COLORS[0])
+            viz_graph.nodes[node]["vis_color"] = _make_vis_color(fill, 0.65)
 
         def label_fn(node, data):
-            if viz_graph.nodes[node].get("color_hex") == _COAUTH_GREY:
-                return ""
             return format_author_short(str(node))
 
         def tooltip_fn(node, data, g):
