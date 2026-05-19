@@ -17,7 +17,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import networkx as nx
 
 # Bump this whenever visualization styling changes to invalidate cached HTML.
-_VIZ_VERSION = "v30"
+_VIZ_VERSION = "v31"
 
 from config import (
     CANVAS_BG,
@@ -559,7 +559,7 @@ def _compute_coauth_positions(graph: nx.Graph) -> Dict:
     y_lo, y_hi = min(ys), max(ys)
     rx = max(x_hi - x_lo, 1e-9)
     ry = max(y_hi - y_lo, 1e-9)
-    half_w, half_h = 5000.0, 4000.0
+    half_w, half_h = 7000.0, 5600.0
     margin = 0.04
     result: Dict = {}
     for n, (x, y) in positions.items():
@@ -819,7 +819,9 @@ def render_coauthorship_network(
         # peripheral authors stay as small background dots — exactly like VOSviewer.
         # Use degree^1.5 so high-degree hub authors get dramatically larger
         # nodes (VOSviewer effect) while peripheral nodes stay small.
-        node_weights = {n: max(filtered.degree(n), 1) ** 1.5 for n in filtered.nodes()}
+        raw_weights = {n: max(filtered.degree(n), 1) ** 1.5 for n in filtered.nodes()}
+        max_raw = max(raw_weights.values(), default=1)
+        node_weights = {n: 1 + (w / max_raw) * 99 for n, w in raw_weights.items()}
 
         # Build cross-cluster colored node set; nodes with only intra-cluster
         # edges are grey.
@@ -827,14 +829,15 @@ def render_coauthorship_network(
         viz_graph = filtered.copy()
 
         def _make_vis_color(fill_hex: str, alpha_fill: float = 0.65) -> dict:
-            alpha_border = min(alpha_fill + 0.25, 1.0)
+            alpha_border = min(alpha_fill + 0.20, 1.0)
             bg  = hex_to_rgba(fill_hex, alpha_fill)
             brd = hex_to_rgba(fill_hex, alpha_border)
             return {
                 "background": bg,
                 "border": brd,
-                "highlight": {"background": hex_to_rgba(fill_hex, 0.90), "border": brd},
-                "hover":     {"background": hex_to_rgba(fill_hex, 0.80), "border": brd},
+                "highlight": {"background": hex_to_rgba(fill_hex, 0.85), "border": brd},
+                "hover":     {"background": hex_to_rgba(fill_hex, 0.75), "border": brd},
+                "opacity": alpha_fill,
             }
 
         # Per-node font sizes: scale linearly from 10 (peripheral) to 18 (hub)
@@ -858,14 +861,14 @@ def render_coauthorship_network(
             # Per-node font: dramatically scale font size by degree (VOSviewer style)
             deg = filtered.degree(node)
             # Map degree to font size: peripheral=11px, hub=48px
-            t = (deg / max(max_deg, 1)) ** 0.5
-            font_size = int(12 + t * 42)  # range: 12px to 54px
-            font_color = "#555555" if is_grey else "#111827"
+            t = (deg / max(max_deg, 1)) ** 0.6
+            font_size = int(14 + t * 58)  # range: 14px to 72px
+            font_color = "#666666" if is_grey else "#111827"
             viz_graph.nodes[node]["vis_font"] = {
                 "color": font_color,
                 "size": font_size,
                 "face": "Arial, sans-serif",
-                "strokeWidth": 3,
+                "strokeWidth": 4,
                 "strokeColor": "#FFFFFF",
             }
 
@@ -907,8 +910,8 @@ def render_coauthorship_network(
             viz_graph, node_sizes, edge_widths, node_weights,
             label_fn, tooltip_fn, _default_edge_tooltip,
             smooth_edges=True, navigation_buttons=True, layout_spread=True,
-            node_scale_min=10, node_scale_max=120,
-            label_min=11, label_max=54, label_threshold=1,
+            node_scale_min=12, node_scale_max=150,
+            label_min=14, label_max=72, label_threshold=1,
             initial_positions=positions,
         )
         if freeze:
