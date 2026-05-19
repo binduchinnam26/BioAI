@@ -17,7 +17,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import networkx as nx
 
 # Bump this whenever visualization styling changes to invalidate cached HTML.
-_VIZ_VERSION = "v29"
+_VIZ_VERSION = "v30"
 
 from config import (
     CANVAS_BG,
@@ -144,11 +144,7 @@ def get_physics_options(
                 "hover": {"border": "rgba(0,0,0,0)"},
             },
             "shadow": {
-                "enabled": True,
-                "color": "rgba(0,0,0,0.30)",
-                "size": 12,
-                "x": 2,
-                "y": 5,
+                "enabled": False,
             },
             "scaling": {
                 "min": node_scale_min,
@@ -161,14 +157,12 @@ def get_physics_options(
                     # them based on zoom (was 1, which hid tiny labels at
                     # fit-to-screen zoom, making all peripheral labels invisible).
                     "drawThreshold": 0,
-                    "maxVisible": label_max,
+                    "maxVisible": 9999,
                 },
             },
             "font": {
-                "color": "#111827",
-                "face": "Inter, Arial, sans-serif",
-                "size": 13,
-                "strokeWidth": 4,
+                "face": "Arial, sans-serif",
+                "strokeWidth": 3,
                 "strokeColor": "#FFFFFF",
             },
         },
@@ -539,7 +533,7 @@ def _compute_coauth_positions(graph: nx.Graph) -> Dict:
 
     # Stage 2: micro layout — place nodes within each community.
     inter_gap = 2.0 / math.sqrt(max(n_comms, 1))
-    max_micro = inter_gap * 0.28   # keep clusters compact, no overlap
+    max_micro = inter_gap * 0.44
 
     positions: Dict = {}
     for cid, nodes in comms.items():
@@ -549,8 +543,8 @@ def _compute_coauth_positions(graph: nx.Graph) -> Dict:
             continue
         subg = graph.subgraph(nodes)
         n_sub = len(nodes)
-        micro_scale = min(0.012 * math.sqrt(n_sub), max_micro)
-        k_micro = 1.5 / math.sqrt(max(n_sub, 1))
+        micro_scale = min(0.025 * math.sqrt(n_sub), max_micro)
+        k_micro = 1.2 / math.sqrt(max(n_sub, 1))
         micro_pos = nx.spring_layout(
             subg, k=k_micro, iterations=100, seed=42, scale=micro_scale
         )
@@ -739,23 +733,16 @@ _COAUTH_CLUSTER_COLORS = [
 
 def _compute_colored_nodes_coauth(graph: nx.Graph) -> set:
     """
-    Return nodes that should be shown in color for the coauth network.
-
-    Stage 1 – cross-cluster: nodes with at least one edge to a *different*
-    Louvain community are colored; pure within-cluster nodes are grey.
-    This faithfully replicates the VOSviewer coloring rule.
-
-    Stage 2 fallback – connected-component size: when Louvain collapses all
-    connected nodes into one giant community (common on small datasets), there
-    are zero cross-cluster edges and Stage 1 gives all-grey. In that case we
-    fall back to coloring every node whose connected component has ≥ 3 members,
-    leaving only isolated singletons and pairs in grey.
+    VOSviewer coloring rule:
+    Stage 1 — nodes with at least one cross-cluster edge are colored.
+    Stage 2 fallback — when ALL edges are intra-cluster (94 disconnected
+    Louvain communities with no cross-cluster edges), color the top half
+    of nodes by degree and grey out the bottom half. This gives the
+    VOSviewer visual effect of hubs colored, leaf nodes grey.
     """
     if graph.number_of_nodes() == 0:
         return set()
 
-    # Stage 1: every node with at least one edge to a DIFFERENT community
-    # is colored with its cluster color; purely intra-cluster nodes are grey.
     cross: set = set()
     for u, v in graph.edges():
         cid_u = graph.nodes[u].get("community_id", -1)
@@ -767,15 +754,20 @@ def _compute_colored_nodes_coauth(graph: nx.Graph) -> set:
     if cross:
         return cross
 
-    # Stage 2 fallback: when every edge is intra-cluster (e.g. one giant
-    # community from Louvain), color by connected-component size ≥ 3.
-    colored: set = set()
-    for comp in nx.connected_components(graph):
-        if len(comp) >= 3:
-            colored.update(comp)
-    if not colored:
-        colored.update(max(nx.connected_components(graph), key=len))
-    return colored
+    # Stage 2: no cross-cluster edges — color top 50% by degree.
+    # Nodes with degree >= median are colored; below-median nodes are grey.
+    degrees = [(n, graph.degree(n)) for n in graph.nodes()]
+    if not degrees:
+        return set()
+    deg_values = sorted([d for _, d in degrees])
+    median_deg = deg_values[len(deg_values) // 2]
+    # Always color nodes with degree >= median AND degree > 1
+    # (singletons and pairs always grey regardless)
+    colored = set()
+    for n, d in degrees:
+        if d > 1 and d >= median_deg:
+            colored.add(n)
+    return colored if colored else {n for n, d in degrees if d > 0}
 
 
 def render_coauthorship_network(
@@ -866,8 +858,8 @@ def render_coauthorship_network(
             # Per-node font: dramatically scale font size by degree (VOSviewer style)
             deg = filtered.degree(node)
             # Map degree to font size: peripheral=11px, hub=48px
-            t = (deg / max(max_deg, 1)) ** 0.5  # square-root for perceptual scaling
-            font_size = int(11 + t * 37)  # range: 11px to 48px
+            t = (deg / max(max_deg, 1)) ** 0.5
+            font_size = int(12 + t * 42)  # range: 12px to 54px
             font_color = "#555555" if is_grey else "#111827"
             viz_graph.nodes[node]["vis_font"] = {
                 "color": font_color,
@@ -915,8 +907,8 @@ def render_coauthorship_network(
             viz_graph, node_sizes, edge_widths, node_weights,
             label_fn, tooltip_fn, _default_edge_tooltip,
             smooth_edges=True, navigation_buttons=True, layout_spread=True,
-            node_scale_min=8, node_scale_max=60,
-            label_min=8, label_max=20, label_threshold=1,
+            node_scale_min=10, node_scale_max=120,
+            label_min=11, label_max=54, label_threshold=1,
             initial_positions=positions,
         )
         if freeze:
