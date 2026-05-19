@@ -20,14 +20,24 @@ body,
 /* ── Hide default Streamlit chrome ───────────────────────── */
 #MainMenu      { visibility: hidden; }
 footer         { visibility: hidden; }
-header         { visibility: hidden; }
 
-/* Keep the sidebar collapse/expand arrow visible even though the
-   rest of the header is hidden. Without this, users have no way
-   to reopen the sidebar once it collapses. */
+/* Hide the top toolbar/decoration individually so the sidebar
+   collapse/expand control (which lives outside the header in
+   Streamlit ≥ 1.32) stays fully visible and clickable. */
+[data-testid="stToolbar"]        { display: none !important; }
+[data-testid="stDecoration"]     { display: none !important; }
+[data-testid="stStatusWidget"]   { display: none !important; }
+[data-testid="stHeader"]         { background: transparent !important;
+                                   height: 0 !important;
+                                   min-height: 0 !important; }
+
+/* Sidebar expand/collapse arrow — force visible across all versions */
 [data-testid="collapsedControl"],
 [data-testid="stSidebarCollapsedControl"] {
   visibility: visible !important;
+  display: flex    !important;
+  opacity: 1       !important;
+  pointer-events: auto !important;
 }
 
 /* ── App container ───────────────────────────────────────── */
