@@ -17,7 +17,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import networkx as nx
 
 # Bump this whenever visualization styling changes to invalidate cached HTML.
-_VIZ_VERSION = "v26"
+_VIZ_VERSION = "v27"
 
 from config import (
     CANVAS_BG,
@@ -379,9 +379,12 @@ network.on('doubleClick', function(params) {
 </script>
 """
 
-def _post_process_html(html: str, node_count: int = 0) -> str:
+def _post_process_html(html: str, node_count: int = 0, use_precomputed: bool = False) -> str:
     """
     Set dark background and inject stabilization + interaction JavaScript.
+    use_precomputed=True injects _COAUTH_STABILIZE_JS (setTimeout-based fit)
+    instead of _STABILIZE_JS (stabilizationIterationsDone-based) — the latter
+    never fires when all nodes have physics=False (pre-computed positions).
     """
     html = html.replace(
         "background-color: #ffffff;", f"background-color: {CANVAS_BG};"
@@ -393,17 +396,17 @@ def _post_process_html(html: str, node_count: int = 0) -> str:
         rf'\1background:{CANVAS_BG};',
         html,
     )
-    # Inject JS before </body>
+    stabilize_js = _COAUTH_STABILIZE_JS if use_precomputed else _STABILIZE_JS
     html = html.replace(
-        "</body>", _STABILIZE_JS + _HIGHLIGHT_JS + "</body>"
+        "</body>", stabilize_js + _HIGHLIGHT_JS + "</body>"
     )
     return html
 
 
-def _pyvis_to_html(net, node_count: int = 0) -> str:
+def _pyvis_to_html(net, node_count: int = 0, use_precomputed: bool = False) -> str:
     """Generate PyVis HTML string (no disk write)."""
     html = net.generate_html(notebook=False)
-    return _post_process_html(html, node_count)
+    return _post_process_html(html, node_count, use_precomputed=use_precomputed)
 
 
 # ── Controls panel ────────────────────────────────────────────────────────────
@@ -519,16 +522,16 @@ def _compute_coauth_positions(graph: nx.Graph) -> Dict:
                 comm_g.add_edge(cu, cv, weight=1)
 
     # Stronger k_macro gives more spread between community centroids.
-    k_macro = 8.0 / math.sqrt(max(n_comms, 1))
+    k_macro = 3.0 / math.sqrt(max(n_comms, 1))
     macro_pos = nx.spring_layout(
-        comm_g, k=k_macro, iterations=500, seed=42, scale=1.0,
-        weight=None,  # ignore edge weights for uniform separation
+        comm_g, k=k_macro, iterations=800, seed=42, scale=1.0,
+        weight="weight",
     )
 
     # Estimated typical inter-community gap in [-1,1] space: 2/sqrt(n_comms).
     # Cap micro_scale to at most 40 % of that gap so clusters never overlap.
     inter_gap = 2.0 / math.sqrt(max(n_comms, 1))
-    max_micro = inter_gap * 0.40
+    max_micro = inter_gap * 0.30
 
     # Stage 2: spring layout within each community, offset by its centroid.
     positions: Dict = {}
@@ -555,7 +558,7 @@ def _compute_coauth_positions(graph: nx.Graph) -> Dict:
     y_lo, y_hi = min(ys), max(ys)
     rx = max(x_hi - x_lo, 1e-9)
     ry = max(y_hi - y_lo, 1e-9)
-    half_w, half_h = 2000.0, 1600.0
+    half_w, half_h = 4500.0, 3600.0
     margin = 0.05
     result: Dict = {}
     for n, (x, y) in positions.items():
@@ -815,7 +818,9 @@ def render_coauthorship_network(
         # co-authors) rather than raw paper count.  Degree follows a power-law
         # distribution so hub authors get dramatically larger nodes while
         # peripheral authors stay as small background dots — exactly like VOSviewer.
-        node_weights = {n: max(filtered.degree(n), 1) for n in filtered.nodes()}
+        # Use degree^1.5 so high-degree hub authors get dramatically larger
+        # nodes (VOSviewer effect) while peripheral nodes stay small.
+        node_weights = {n: max(filtered.degree(n), 1) ** 1.5 for n in filtered.nodes()}
 
         # Build cross-cluster colored node set; nodes with only intra-cluster
         # edges are grey.
@@ -851,15 +856,17 @@ def render_coauthorship_network(
             fill = viz_graph.nodes[node]["color_hex"]
             viz_graph.nodes[node]["vis_color"] = _make_vis_color(fill, 0.65)
 
-            # Per-node font: grey nodes use muted color; size scales with degree
+            # Per-node font: dramatically scale font size by degree (VOSviewer style)
             deg = filtered.degree(node)
-            font_size = int(10 + (deg / max(max_deg, 1)) * 8)  # 10–18 px
-            font_color = "#6B7280" if is_grey else "#111827"
+            # Map degree to font size: peripheral=11px, hub=48px
+            t = (deg / max(max_deg, 1)) ** 0.5  # square-root for perceptual scaling
+            font_size = int(11 + t * 37)  # range: 11px to 48px
+            font_color = "#555555" if is_grey else "#111827"
             viz_graph.nodes[node]["vis_font"] = {
                 "color": font_color,
                 "size": font_size,
-                "face": "Inter, Arial, sans-serif",
-                "strokeWidth": 2 if is_grey else 3,
+                "face": "Arial, sans-serif",
+                "strokeWidth": 3,
                 "strokeColor": "#FFFFFF",
             }
 
@@ -896,20 +903,18 @@ def render_coauthorship_network(
             )
             return _wrap_tooltip(content)
 
-        # Let vis.js forceAtlas2Based + improvedLayout handle placement.
-        # improvedLayout (Kamada-Kawai pre-pass) prevents the circular ring
-        # that NetworkX spring_layout produces for disconnected communities.
+        positions = _compute_coauth_positions(viz_graph)
         net = _build_pyvis_network(
             viz_graph, node_sizes, edge_widths, node_weights,
             label_fn, tooltip_fn, _default_edge_tooltip,
-            smooth_edges=True, navigation_buttons=True, layout_spread=True,
+            smooth_edges=True, navigation_buttons=True, layout_spread=False,
             node_scale_min=8, node_scale_max=60,
             label_min=8, label_max=20, label_threshold=1,
-            initial_positions=None,
+            initial_positions=positions,
         )
         if freeze:
             net.toggle_physics(False)
-        html = _pyvis_to_html(net, filtered.number_of_nodes())
+        html = _pyvis_to_html(net, filtered.number_of_nodes(), use_precomputed=True)
         st.session_state[cache_key] = html
     else:
         html = st.session_state[cache_key]
