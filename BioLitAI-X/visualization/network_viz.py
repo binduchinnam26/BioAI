@@ -17,7 +17,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import networkx as nx
 
 # Bump this whenever visualization styling changes to invalidate cached HTML.
-_VIZ_VERSION = "v27"
+_VIZ_VERSION = "v28"
 
 from config import (
     CANVAS_BG,
@@ -75,22 +75,22 @@ def get_physics_options(
                 "enabled": True,
                 "solver": "forceAtlas2Based",
                 "forceAtlas2Based": {
-                    "gravitationalConstant": -120,
-                    "centralGravity": 0.015,
-                    "springLength": 150,
-                    "springConstant": 0.08,
-                    "damping": 0.92,
-                    "avoidOverlap": 0.8,
+                    "gravitationalConstant": -26,
+                    "centralGravity": 0.0008,
+                    "springLength": 60,
+                    "springConstant": 0.12,
+                    "damping": 0.95,
+                    "avoidOverlap": 1.0,
                 },
-                "maxVelocity": 80,
-                "minVelocity": 0.75,
+                "maxVelocity": 50,
+                "minVelocity": 0.3,
                 "stabilization": {
                     "enabled": True,
-                    "iterations": 500,
-                    "updateInterval": 25,
+                    "iterations": 600,
+                    "updateInterval": 10,
                     "fit": True,
                 },
-                "timestep": 0.3,
+                "timestep": 0.2,
             }
     else:
         if node_count < 50:
@@ -379,12 +379,9 @@ network.on('doubleClick', function(params) {
 </script>
 """
 
-def _post_process_html(html: str, node_count: int = 0, use_precomputed: bool = False) -> str:
+def _post_process_html(html: str, node_count: int = 0) -> str:
     """
     Set dark background and inject stabilization + interaction JavaScript.
-    use_precomputed=True injects _COAUTH_STABILIZE_JS (setTimeout-based fit)
-    instead of _STABILIZE_JS (stabilizationIterationsDone-based) — the latter
-    never fires when all nodes have physics=False (pre-computed positions).
     """
     html = html.replace(
         "background-color: #ffffff;", f"background-color: {CANVAS_BG};"
@@ -396,17 +393,16 @@ def _post_process_html(html: str, node_count: int = 0, use_precomputed: bool = F
         rf'\1background:{CANVAS_BG};',
         html,
     )
-    stabilize_js = _COAUTH_STABILIZE_JS if use_precomputed else _STABILIZE_JS
     html = html.replace(
-        "</body>", stabilize_js + _HIGHLIGHT_JS + "</body>"
+        "</body>", _STABILIZE_JS + _HIGHLIGHT_JS + "</body>"
     )
     return html
 
 
-def _pyvis_to_html(net, node_count: int = 0, use_precomputed: bool = False) -> str:
+def _pyvis_to_html(net, node_count: int = 0) -> str:
     """Generate PyVis HTML string (no disk write)."""
     html = net.generate_html(notebook=False)
-    return _post_process_html(html, node_count, use_precomputed=use_precomputed)
+    return _post_process_html(html, node_count)
 
 
 # ── Controls panel ────────────────────────────────────────────────────────────
@@ -903,18 +899,17 @@ def render_coauthorship_network(
             )
             return _wrap_tooltip(content)
 
-        positions = _compute_coauth_positions(viz_graph)
         net = _build_pyvis_network(
             viz_graph, node_sizes, edge_widths, node_weights,
             label_fn, tooltip_fn, _default_edge_tooltip,
-            smooth_edges=True, navigation_buttons=True, layout_spread=False,
+            smooth_edges=True, navigation_buttons=True, layout_spread=True,
             node_scale_min=8, node_scale_max=60,
             label_min=8, label_max=20, label_threshold=1,
-            initial_positions=positions,
+            initial_positions=None,
         )
         if freeze:
             net.toggle_physics(False)
-        html = _pyvis_to_html(net, filtered.number_of_nodes(), use_precomputed=True)
+        html = _pyvis_to_html(net, filtered.number_of_nodes())
         st.session_state[cache_key] = html
     else:
         html = st.session_state[cache_key]
