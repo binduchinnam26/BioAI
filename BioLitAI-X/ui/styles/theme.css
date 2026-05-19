@@ -22,6 +22,14 @@ body,
 footer         { visibility: hidden; }
 header         { visibility: hidden; }
 
+/* Keep the sidebar collapse/expand arrow visible even though the
+   rest of the header is hidden. Without this, users have no way
+   to reopen the sidebar once it collapses. */
+[data-testid="collapsedControl"],
+[data-testid="stSidebarCollapsedControl"] {
+  visibility: visible !important;
+}
+
 /* ── App container ───────────────────────────────────────── */
 .stApp {
   background-color: #0A0F1E;
