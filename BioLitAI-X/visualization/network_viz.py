@@ -17,7 +17,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import networkx as nx
 
 # Bump this whenever visualization styling changes to invalidate cached HTML.
-_VIZ_VERSION = "v28"
+_VIZ_VERSION = "v29"
 
 from config import (
     CANVAS_BG,
@@ -379,9 +379,11 @@ network.on('doubleClick', function(params) {
 </script>
 """
 
-def _post_process_html(html: str, node_count: int = 0) -> str:
+def _post_process_html(html: str, node_count: int = 0, use_precomputed: bool = False) -> str:
     """
-    Set dark background and inject stabilization + interaction JavaScript.
+    Set canvas background and inject stabilization + interaction JavaScript.
+    use_precomputed=True: physics is off, use setTimeout fit instead of
+    stabilizationIterationsDone (which never fires when physics=False).
     """
     html = html.replace(
         "background-color: #ffffff;", f"background-color: {CANVAS_BG};"
@@ -393,16 +395,17 @@ def _post_process_html(html: str, node_count: int = 0) -> str:
         rf'\1background:{CANVAS_BG};',
         html,
     )
+    stabilize_js = _COAUTH_STABILIZE_JS if use_precomputed else _STABILIZE_JS
     html = html.replace(
-        "</body>", _STABILIZE_JS + _HIGHLIGHT_JS + "</body>"
+        "</body>", stabilize_js + _HIGHLIGHT_JS + "</body>"
     )
     return html
 
 
-def _pyvis_to_html(net, node_count: int = 0) -> str:
+def _pyvis_to_html(net, node_count: int = 0, use_precomputed: bool = False) -> str:
     """Generate PyVis HTML string (no disk write)."""
     html = net.generate_html(notebook=False)
-    return _post_process_html(html, node_count)
+    return _post_process_html(html, node_count, use_precomputed=use_precomputed)
 
 
 # ── Controls panel ────────────────────────────────────────────────────────────
@@ -482,29 +485,26 @@ def _render_controls(
 
 def _compute_coauth_positions(graph: nx.Graph) -> Dict:
     """
-    2-stage community-aware layout for the co-authorship network.
-
-    Stage 1 — macro: spring layout on the reduced community graph places each
-    community centroid well away from the others (k proportional to 1/sqrt(n)).
-    Stage 2 — micro: spring layout within each community subgraph, with a scale
-    capped so the cluster radius is always smaller than the inter-cluster gap.
-
-    Returns dict[node -> (x, y)] in vis.js canvas pixels (origin at centre).
-    Positions are injected as x/y/physics=False per node; vis.js draws without
-    running any physics simulation so there is no ball-collapse.
+    VOSviewer-style 2-stage layout using only NetworkX spring_layout.
+    Stage 1: place community centroids using spring layout on a community graph.
+    Stage 2: place nodes within each community using spring layout on subgraph.
+    Returns dict[node -> (x, y)] in vis.js canvas pixels.
+    Physics is disabled after this so vis.js draws without simulation.
     """
     if graph.number_of_nodes() == 0:
         return {}
 
-    # Group nodes by community
+    # Group nodes by community_id
     comms: Dict[int, list] = {}
     for n in graph.nodes():
         cid = graph.nodes[n].get("community_id", 0)
         comms.setdefault(cid, []).append(n)
     n_comms = len(comms)
 
-    # Stage 1: spring layout of community centroids.
-    # k_macro = 5/sqrt(n) gives strong spread; scale=1 normalises to [-1,1].
+    # Build inter-community graph to use as macro layout guide.
+    # Even if there are zero inter-cluster edges in the real graph,
+    # we add a small synthetic weight between all community pairs so
+    # the spring layout still produces a reasonable spread.
     comm_g: nx.Graph = nx.Graph()
     for cid in comms:
         comm_g.add_node(cid)
@@ -513,23 +513,34 @@ def _compute_coauth_positions(graph: nx.Graph) -> Dict:
         cv = graph.nodes[v].get("community_id", 0)
         if cu != cv:
             if comm_g.has_edge(cu, cv):
-                comm_g[cu][cv]["weight"] = comm_g[cu][cv].get("weight", 0) + 1
+                comm_g[cu][cv]["weight"] += 1
             else:
                 comm_g.add_edge(cu, cv, weight=1)
+    # Add synthetic weak edges between all community pairs that have no real edge.
+    # This prevents completely disconnected communities from collapsing together
+    # or being placed randomly — they get evenly spread across the canvas.
+    all_cids = list(comms.keys())
+    for i in range(len(all_cids)):
+        for j in range(i + 1, len(all_cids)):
+            if not comm_g.has_edge(all_cids[i], all_cids[j]):
+                comm_g.add_edge(all_cids[i], all_cids[j], weight=0.01)
 
-    # Stronger k_macro gives more spread between community centroids.
-    k_macro = 3.0 / math.sqrt(max(n_comms, 1))
+    # Stage 1: macro layout — place community centroids.
+    # k = 1/sqrt(n) is the default; we use a larger k for more spread.
+    k_macro = 2.0 / math.sqrt(max(n_comms, 1))
     macro_pos = nx.spring_layout(
-        comm_g, k=k_macro, iterations=800, seed=42, scale=1.0,
+        comm_g,
+        k=k_macro,
+        iterations=300,
+        seed=42,
+        scale=1.0,
         weight="weight",
     )
 
-    # Estimated typical inter-community gap in [-1,1] space: 2/sqrt(n_comms).
-    # Cap micro_scale to at most 40 % of that gap so clusters never overlap.
+    # Stage 2: micro layout — place nodes within each community.
     inter_gap = 2.0 / math.sqrt(max(n_comms, 1))
-    max_micro = inter_gap * 0.30
+    max_micro = inter_gap * 0.28   # keep clusters compact, no overlap
 
-    # Stage 2: spring layout within each community, offset by its centroid.
     positions: Dict = {}
     for cid, nodes in comms.items():
         cx, cy = macro_pos.get(cid, (0.0, 0.0))
@@ -538,24 +549,24 @@ def _compute_coauth_positions(graph: nx.Graph) -> Dict:
             continue
         subg = graph.subgraph(nodes)
         n_sub = len(nodes)
-        # micro_scale grows with cluster size but is hard-capped.
-        micro_scale = min(0.015 * math.sqrt(n_sub), max_micro)
-        k_micro = 2.0 / math.sqrt(max(n_sub, 1))
-        micro_pos = nx.spring_layout(subg, k=k_micro, iterations=80, seed=42, scale=micro_scale)
+        micro_scale = min(0.012 * math.sqrt(n_sub), max_micro)
+        k_micro = 1.5 / math.sqrt(max(n_sub, 1))
+        micro_pos = nx.spring_layout(
+            subg, k=k_micro, iterations=100, seed=42, scale=micro_scale
+        )
         for node, (mx, my) in micro_pos.items():
             positions[node] = (cx + mx, cy + my)
 
-    # Normalise to vis.js canvas coords: origin at centre.
-    # Larger canvas (±2000 × ±1600 px) gives more spread at fit-to-screen,
-    # making cluster groups visually distinct without needing to zoom in.
+    # Normalise all positions into vis.js canvas space (origin = centre).
+    # Use a large canvas so fit-to-screen shows all clusters clearly spread out.
     xs = [p[0] for p in positions.values()]
     ys = [p[1] for p in positions.values()]
     x_lo, x_hi = min(xs), max(xs)
     y_lo, y_hi = min(ys), max(ys)
     rx = max(x_hi - x_lo, 1e-9)
     ry = max(y_hi - y_lo, 1e-9)
-    half_w, half_h = 4500.0, 3600.0
-    margin = 0.05
+    half_w, half_h = 5000.0, 4000.0
+    margin = 0.04
     result: Dict = {}
     for n, (x, y) in positions.items():
         px = ((x - x_lo) / rx * (1 - 2 * margin) + margin) * 2 * half_w - half_w
@@ -899,17 +910,18 @@ def render_coauthorship_network(
             )
             return _wrap_tooltip(content)
 
+        positions = _compute_coauth_positions(viz_graph)
         net = _build_pyvis_network(
             viz_graph, node_sizes, edge_widths, node_weights,
             label_fn, tooltip_fn, _default_edge_tooltip,
             smooth_edges=True, navigation_buttons=True, layout_spread=True,
             node_scale_min=8, node_scale_max=60,
             label_min=8, label_max=20, label_threshold=1,
-            initial_positions=None,
+            initial_positions=positions,
         )
         if freeze:
             net.toggle_physics(False)
-        html = _pyvis_to_html(net, filtered.number_of_nodes())
+        html = _pyvis_to_html(net, filtered.number_of_nodes(), use_precomputed=True)
         st.session_state[cache_key] = html
     else:
         html = st.session_state[cache_key]
