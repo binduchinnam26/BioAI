@@ -6,9 +6,6 @@ enableXsrfProtection = false
 [browser]
 gatherUsageStats = false
 
-[ui]
-hideSidebarNav = false
-
 [theme]
 base = "dark"
 backgroundColor = "#0A0F1E"
