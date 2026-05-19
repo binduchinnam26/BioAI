@@ -17,7 +17,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import networkx as nx
 
 # Bump this whenever visualization styling changes to invalidate cached HTML.
-_VIZ_VERSION = "v32"
+_VIZ_VERSION = "v34"
 
 from config import (
     CANVAS_BG,
@@ -911,7 +911,7 @@ def render_coauthorship_network(
             viz_graph, node_sizes, edge_widths, node_weights,
             label_fn, tooltip_fn, _default_edge_tooltip,
             smooth_edges=True, navigation_buttons=True, layout_spread=True,
-            node_scale_min=15, node_scale_max=180,
+            node_scale_min=35, node_scale_max=350,
             label_min=28, label_max=120, label_threshold=1,
             initial_positions=positions,
         )
