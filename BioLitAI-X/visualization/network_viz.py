@@ -17,7 +17,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import networkx as nx
 
 # Bump this whenever visualization styling changes to invalidate cached HTML.
-_VIZ_VERSION = "v25"
+_VIZ_VERSION = "v26"
 
 from config import (
     CANVAS_BG,
@@ -65,25 +65,28 @@ def get_physics_options(
         if freeze_layout:
             physics_section = {"enabled": False}
         else:
-            # forceAtlas2Based tuned to scatter clusters organically —
-            # low centralGravity prevents ring arrangement, high damping
-            # prevents ball collapse, avoidOverlap=1 prevents node stacking.
+            # VOSviewer-faithful forceAtlas2Based settings.
+            # centralGravity 0.015 keeps disconnected clusters on one canvas
+            # (was 0.003 — too weak, clusters drifted apart as islands).
+            # springLength 150 + springConstant 0.08 pull inter-cluster edges
+            # together. avoidOverlap 0.8 prevents node stacking without over-
+            # compressing the layout. damping 0.92 stops ball-collapse.
             physics_section = {
                 "enabled": True,
                 "solver": "forceAtlas2Based",
                 "forceAtlas2Based": {
-                    "gravitationalConstant": -80,
-                    "centralGravity": 0.003,
-                    "springLength": 200,
-                    "springConstant": 0.05,
-                    "damping": 0.9,
-                    "avoidOverlap": 1,
+                    "gravitationalConstant": -120,
+                    "centralGravity": 0.015,
+                    "springLength": 150,
+                    "springConstant": 0.08,
+                    "damping": 0.92,
+                    "avoidOverlap": 0.8,
                 },
                 "maxVelocity": 80,
                 "minVelocity": 0.75,
                 "stabilization": {
                     "enabled": True,
-                    "iterations": 400,
+                    "iterations": 500,
                     "updateInterval": 25,
                     "fit": True,
                 },
@@ -154,13 +157,17 @@ def get_physics_options(
                     "enabled": True,
                     "min": label_min,
                     "max": label_max,
-                    "drawThreshold": label_threshold,
+                    # drawThreshold 0 — always draw every label; never hide
+                    # them based on zoom (was 1, which hid tiny labels at
+                    # fit-to-screen zoom, making all peripheral labels invisible).
+                    "drawThreshold": 0,
                     "maxVisible": label_max,
                 },
             },
             "font": {
                 "color": "#111827",
                 "face": "Inter, Arial, sans-serif",
+                "size": 13,
                 "strokeWidth": 4,
                 "strokeColor": "#FFFFFF",
             },
@@ -259,8 +266,19 @@ _STABILIZE_JS = """
 <script>
 network.once('stabilizationIterationsDone', function() {
   network.setOptions({ physics: { enabled: false } });
-  network.fit({ animation: { duration: 600, easingFunction: 'easeInOutQuad' } });
+  network.fit({ animation: { duration: 800, easingFunction: 'easeInOutQuad' } });
 });
+// Wire the vis.js navigation "Fit all nodes" button to network.fit()
+// Must wait a tick for the button to be injected into the DOM.
+setTimeout(function() {
+  var btn = document.querySelector('.vis-button.vis-zoomExtends');
+  if (btn) {
+    btn.addEventListener('click', function(e) {
+      e.preventDefault();
+      network.fit({ animation: { duration: 800, easingFunction: 'easeInOutQuad' } });
+    });
+  }
+}, 600);
 </script>
 """
 
@@ -613,11 +631,13 @@ def _build_pyvis_network(
         if isinstance(vis_color, dict):
             node_kwargs["borderWidth"] = 1.5
             node_kwargs["borderWidthSelected"] = 2.5
-        # Per-node font override (e.g. grey for within-cluster-only nodes)
-        if "font_color" in data:
+        # Per-node font: vis_font (full dict) takes priority over legacy font_color
+        if "vis_font" in data:
+            node_kwargs["font"] = data["vis_font"]
+        elif "font_color" in data:
             node_kwargs["font"] = {
                 "color": data["font_color"],
-                "face": "Arial",
+                "face": "Inter, Arial, sans-serif",
                 "strokeWidth": 3,
                 "strokeColor": "#FFFFFF",
             }
@@ -632,26 +652,28 @@ def _build_pyvis_network(
     for u, v in graph.edges():
         u_color = graph.nodes[u].get("color_hex", COMMUNITY_COLORS[0])
         v_color = graph.nodes[v].get("color_hex", COMMUNITY_COLORS[0])
-        # Prefer the colored endpoint's color so cross-cluster edges stay vivid
+        u_cid   = graph.nodes[u].get("community_id", -1)
+        v_cid   = graph.nodes[v].get("community_id", -1)
+        # Prefer the colored (non-grey) endpoint; when both are colored use u
         grey = _COAUTH_GREY
         edge_color_hex = v_color if u_color == grey and v_color != grey else u_color
+        # Intra-cluster edges slightly more transparent; inter-cluster edges
+        # must be fully visible (0.45) to show cross-community connections.
+        is_same_cluster = (u_cid == v_cid)
+        edge_opacity = 0.40 if is_same_cluster else 0.45
         width = edge_widths.get((u, v), EDGE_WIDTH_MIN)
         edge_data = graph[u][v] if isinstance(graph, nx.Graph) else {}
         tooltip = edge_tooltip_fn(u, v, edge_data)
         if smooth_edges:
-            # "curvedCW" curves are pre-computed once at layout time.
-            # "dynamic" curves recalculate every physics frame (O(E) per step)
-            # which multiplied 1500 iterations × 3000+ edges → slow render.
-            smooth: Any = {"type": "curvedCW", "roundness": 0.15}
+            smooth: Any = {"type": "continuous", "roundness": 0.3}
         elif directed:
             smooth = {"type": "curvedCW", "roundness": 0.2}
         else:
             smooth = False
-        # Plain rgba string — avoids dict serialisation issues
         net.add_edge(
             u, v,
             width=width,
-            color=hex_to_rgba(edge_color_hex, 0.45),
+            color=hex_to_rgba(edge_color_hex, edge_opacity),
             title=tooltip,
             arrows="" if not directed else "to",
             smooth=smooth,
@@ -690,6 +712,20 @@ def _default_edge_tooltip(u, v, data) -> str:
 # Grey fill used for within-cluster-only authors in the co-authorship network
 _COAUTH_GREY = "#969696"
 
+# Cluster color palette for cross-cluster (bridge) authors — user-specified
+_COAUTH_CLUSTER_COLORS = [
+    "#3498DB",  # 0 blue
+    "#2ECC71",  # 1 green
+    "#E74C3C",  # 2 red
+    "#F1C40F",  # 3 yellow
+    "#9B59B6",  # 4 purple
+    "#E67E22",  # 5 orange
+    "#1ABC9C",  # 6 teal
+    "#34495E",  # 7 dark blue
+    "#D35400",  # 8 burnt orange
+    "#27AE60",  # 9 emerald
+]
+
 
 def _compute_colored_nodes_coauth(graph: nx.Graph) -> set:
     """
@@ -708,7 +744,8 @@ def _compute_colored_nodes_coauth(graph: nx.Graph) -> set:
     if graph.number_of_nodes() == 0:
         return set()
 
-    # Stage 1: cross-cluster edges
+    # Stage 1: every node with at least one edge to a DIFFERENT community
+    # is colored with its cluster color; purely intra-cluster nodes are grey.
     cross: set = set()
     for u, v in graph.edges():
         cid_u = graph.nodes[u].get("community_id", -1)
@@ -717,17 +754,16 @@ def _compute_colored_nodes_coauth(graph: nx.Graph) -> set:
             cross.add(u)
             cross.add(v)
 
-    # Use cross-cluster result only when it gives a meaningful fraction of nodes
-    if len(cross) >= max(3, int(0.05 * graph.number_of_nodes())):
+    if cross:
         return cross
 
-    # Stage 2 fallback: component size ≥ 3
+    # Stage 2 fallback: when every edge is intra-cluster (e.g. one giant
+    # community from Louvain), color by connected-component size ≥ 3.
     colored: set = set()
     for comp in nx.connected_components(graph):
         if len(comp) >= 3:
             colored.update(comp)
     if not colored:
-        # Always color at least the largest component
         colored.update(max(nx.connected_components(graph), key=len))
     return colored
 
@@ -781,17 +817,15 @@ def render_coauthorship_network(
         # peripheral authors stay as small background dots — exactly like VOSviewer.
         node_weights = {n: max(filtered.degree(n), 1) for n in filtered.nodes()}
 
-        # VOSviewer coloring: "bridge" authors (or main-component members when
-        # cross-cluster detection yields too few) keep their cluster color;
-        # isolated/peripheral authors are rendered in grey.
+        # Build cross-cluster colored node set; nodes with only intra-cluster
+        # edges are grey.
         colored_nodes = _compute_colored_nodes_coauth(filtered)
         viz_graph = filtered.copy()
 
         def _make_vis_color(fill_hex: str, alpha_fill: float = 0.65) -> dict:
-            """Build a vis.js per-node color dict with semi-transparent rgba fills."""
             alpha_border = min(alpha_fill + 0.25, 1.0)
-            bg   = hex_to_rgba(fill_hex, alpha_fill)
-            brd  = hex_to_rgba(fill_hex, alpha_border)
+            bg  = hex_to_rgba(fill_hex, alpha_fill)
+            brd = hex_to_rgba(fill_hex, alpha_border)
             return {
                 "background": bg,
                 "border": brd,
@@ -799,12 +833,35 @@ def render_coauthorship_network(
                 "hover":     {"background": hex_to_rgba(fill_hex, 0.80), "border": brd},
             }
 
+        # Per-node font sizes: scale linearly from 10 (peripheral) to 18 (hub)
+        degrees_list = [filtered.degree(n) for n in filtered.nodes()]
+        max_deg = max(degrees_list) if degrees_list else 1
+
         for node in viz_graph.nodes():
-            if node not in colored_nodes:
+            cid = viz_graph.nodes[node].get("community_id", 0)
+            is_grey = node not in colored_nodes
+            if is_grey:
                 viz_graph.nodes[node]["color_hex"] = _COAUTH_GREY
-                viz_graph.nodes[node]["font_color"] = "#6B7280"
-            fill = viz_graph.nodes[node].get("color_hex", COMMUNITY_COLORS[0])
+            else:
+                # Always re-derive from community_id so color is consistent
+                # regardless of what the upstream pipeline stored.
+                viz_graph.nodes[node]["color_hex"] = _COAUTH_CLUSTER_COLORS[
+                    cid % len(_COAUTH_CLUSTER_COLORS)
+                ]
+            fill = viz_graph.nodes[node]["color_hex"]
             viz_graph.nodes[node]["vis_color"] = _make_vis_color(fill, 0.65)
+
+            # Per-node font: grey nodes use muted color; size scales with degree
+            deg = filtered.degree(node)
+            font_size = int(10 + (deg / max(max_deg, 1)) * 8)  # 10–18 px
+            font_color = "#6B7280" if is_grey else "#111827"
+            viz_graph.nodes[node]["vis_font"] = {
+                "color": font_color,
+                "size": font_size,
+                "face": "Inter, Arial, sans-serif",
+                "strokeWidth": 2 if is_grey else 3,
+                "strokeColor": "#FFFFFF",
+            }
 
         def label_fn(node, data):
             return format_author_short(str(node))
@@ -846,8 +903,8 @@ def render_coauthorship_network(
             viz_graph, node_sizes, edge_widths, node_weights,
             label_fn, tooltip_fn, _default_edge_tooltip,
             smooth_edges=True, navigation_buttons=True, layout_spread=True,
-            node_scale_min=8, node_scale_max=40,
-            label_min=11, label_max=48, label_threshold=1,
+            node_scale_min=8, node_scale_max=60,
+            label_min=8, label_max=20, label_threshold=1,
             initial_positions=None,
         )
         if freeze:
