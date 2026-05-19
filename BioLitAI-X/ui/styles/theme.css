@@ -53,7 +53,16 @@ footer         { visibility: hidden; }
 }
 
 /* ── Sidebar ─────────────────────────────────────────────── */
+/* Pin the sidebar open — Streamlit 1.32 collapses it with
+   translateX(-110%); overriding transform keeps it always visible. */
+section[data-testid="stSidebar"],
 [data-testid="stSidebar"] {
+  display:    block      !important;
+  visibility: visible    !important;
+  opacity:    1          !important;
+  transform:  translateX(0) !important;
+  min-width:  240px      !important;
+  width:      240px      !important;
   background-color: #111827;
   border-right: 1px solid #1F2937;
 }
