@@ -41,7 +41,7 @@ from utils.helpers import (
 
 # ── Physics options ───────────────────────────────────────────────────────────
 
-def get_physics_options(node_count: int) -> Dict:
+def get_physics_options(node_count: int, network_type: str = "default") -> Dict:
     if node_count < 50:
         grav = -3000
         spring = 200
@@ -55,12 +55,17 @@ def get_physics_options(node_count: int) -> Dict:
         spring = 150
         overlap = 0.9
 
+    # Keyword networks need very low central gravity so clusters spread apart
+    central_grav = 0.04 if network_type == "keyword" else 0.15
+    if network_type == "keyword":
+        spring = int(spring * 1.3)   # longer springs → more inter-cluster space
+
     return {
         "physics": {
             "enabled": True,
             "barnesHut": {
                 "gravitationalConstant": grav,
-                "centralGravity": 0.15,
+                "centralGravity": central_grav,
                 "springLength": spring,
                 "springConstant": 0.04,
                 "damping": 0.12,
@@ -119,17 +124,31 @@ def _wrap_tooltip(content: str) -> str:
 def _compute_node_sizes(
     graph: nx.Graph,
     weight_attr: str = "weight",
+    size_min: Optional[float] = None,
+    size_max: Optional[float] = None,
 ) -> Dict[Any, float]:
+    if size_min is None:
+        size_min = NODE_SIZE_MIN
+    if size_max is None:
+        size_max = NODE_SIZE_MAX
     weights = {n: graph.nodes[n].get(weight_attr, 1) for n in graph.nodes()}
     w_min = min(weights.values(), default=1)
     w_max = max(weights.values(), default=1)
     return {
-        n: scale_node_size(w, w_min, w_max, NODE_SIZE_MIN, NODE_SIZE_MAX)
+        n: scale_node_size(w, w_min, w_max, size_min, size_max)
         for n, w in weights.items()
     }
 
 
-def _compute_edge_widths(graph: nx.Graph) -> Dict[Tuple, float]:
+def _compute_edge_widths(
+    graph: nx.Graph,
+    width_min: Optional[float] = None,
+    width_max: Optional[float] = None,
+) -> Dict[Tuple, float]:
+    if width_min is None:
+        width_min = EDGE_WIDTH_MIN
+    if width_max is None:
+        width_max = EDGE_WIDTH_MAX
     edge_weights = {
         (u, v): graph[u][v].get("weight", 1) for u, v in graph.edges()
     }
@@ -138,19 +157,25 @@ def _compute_edge_widths(graph: nx.Graph) -> Dict[Tuple, float]:
     w_min = min(edge_weights.values())
     w_max = max(edge_weights.values())
     return {
-        edge: scale_edge_width(w, w_min, w_max, EDGE_WIDTH_MIN, EDGE_WIDTH_MAX)
+        edge: scale_edge_width(w, w_min, w_max, width_min, width_max)
         for edge, w in edge_weights.items()
     }
 
 
 # ── Label visibility ──────────────────────────────────────────────────────────
 
-def _label_font(weight: float, p50: float, p75: float) -> Dict:
-    if weight >= p75:
-        return {"size": 16, "color": "#000000", "face": "arial", "strokeWidth": 3, "strokeColor": "#FFFFFF"}
-    if weight >= p50:
-        return {"size": 13, "color": "#000000", "face": "arial", "strokeWidth": 2, "strokeColor": "#FFFFFF"}
-    return {"size": 11, "color": "#333333", "face": "arial", "strokeWidth": 1, "strokeColor": "#FFFFFF"}
+def _label_font(weight: float, w_min: float, w_max: float) -> Dict:
+    """Font size scales proportionally with sqrt(weight), matching VOSviewer."""
+    scaled = ((weight - w_min) / max(w_max - w_min, 1e-9)) ** 0.5
+    size = max(8, int(8 + scaled * 20))   # 8–28 px
+    stroke = 1 if scaled < 0.35 else (2 if scaled < 0.70 else 3)
+    return {
+        "size": size,
+        "color": "#000000",
+        "face": "arial",
+        "strokeWidth": stroke,
+        "strokeColor": "#FFFFFF",
+    }
 
 
 # ── PyVis HTML post-processing ────────────────────────────────────────────────
@@ -403,6 +428,8 @@ def _build_pyvis_network(
     edge_tooltip_fn,
     directed: bool = False,
     shape_fn=None,
+    edge_alpha: float = 0.55,
+    network_type: str = "default",
 ) -> Any:
     """
     Build a PyVis Network object from a NetworkX graph with full
@@ -414,8 +441,8 @@ def _build_pyvis_network(
         raise ImportError("pyvis is not installed. Run: pip install pyvis") from exc
 
     w_list = list(node_weights.values())
-    p50 = percentile(w_list, 50) if w_list else 1.0
-    p75 = percentile(w_list, 75) if w_list else 1.0
+    w_min_all = min(w_list) if w_list else 1.0
+    w_max_all = max(w_list) if w_list else 1.0
 
     net = Network(
         height="850px",
@@ -435,7 +462,7 @@ def _build_pyvis_network(
         label = label_fn(node, data)
         tooltip = tooltip_fn(node, data, graph)
         shape = shape_fn(data) if shape_fn else "dot"
-        font = _label_font(weight, p50, p75)
+        font = _label_font(weight, w_min_all, w_max_all)
 
         node_color = {
             "background": fill_hex,
@@ -460,9 +487,9 @@ def _build_pyvis_network(
         src_community = graph.nodes[u].get("community_id", 0)
         src_color_hex = graph.nodes[u].get("color_hex", COMMUNITY_COLORS[0])
         edge_color = {
-            "color": hex_to_rgba(src_color_hex, 0.55),
-            "highlight": hex_to_rgba(src_color_hex, 1.0),
-            "hover": hex_to_rgba(src_color_hex, 0.85),
+            "color": hex_to_rgba(src_color_hex, edge_alpha),
+            "highlight": hex_to_rgba(src_color_hex, min(1.0, edge_alpha + 0.45)),
+            "hover": hex_to_rgba(src_color_hex, min(1.0, edge_alpha + 0.30)),
             "inherit": False,
         }
         width = edge_widths.get((u, v), EDGE_WIDTH_MIN)
@@ -478,7 +505,7 @@ def _build_pyvis_network(
                 {"type": "curvedCW", "roundness": 0.15},
         )
 
-    physics_opts = get_physics_options(graph.number_of_nodes())
+    physics_opts = get_physics_options(graph.number_of_nodes(), network_type)
     net.set_options(json.dumps(physics_opts))
     return net
 
@@ -697,13 +724,15 @@ def render_keyword_network(
         f"{','.join(map(str, sel_comms))}_{search}_{freeze}"
     )
     if cache_key not in st.session_state:
-        node_sizes = _compute_node_sizes(filtered)
-        edge_widths = _compute_edge_widths(filtered)
+        # Keyword network: wide size range for VOSviewer-style dramatic scaling;
+        # thin, faint edges so cluster structure reads clearly.
+        node_sizes = _compute_node_sizes(filtered, size_min=5, size_max=90)
+        edge_widths = _compute_edge_widths(filtered, width_min=0.5, width_max=2.5)
         node_weights = {n: filtered.nodes[n].get("weight", 1)
                         for n in filtered.nodes()}
 
         def label_fn(node, data):
-            return truncate(str(node), 25)
+            return truncate(str(node), 30)
 
         def tooltip_fn(node, data, g):
             freq = data.get("weight", 0)
@@ -743,6 +772,7 @@ def render_keyword_network(
         net = _build_pyvis_network(
             filtered, node_sizes, edge_widths, node_weights,
             label_fn, tooltip_fn, _default_edge_tooltip,
+            edge_alpha=0.18, network_type="keyword",
         )
         if freeze:
             net.toggle_physics(False)
