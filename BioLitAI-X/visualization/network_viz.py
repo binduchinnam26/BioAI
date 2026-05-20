@@ -16,9 +16,6 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import networkx as nx
 
-# Bump this whenever visualization styling changes to invalidate cached HTML.
-_VIZ_VERSION = "v38"
-
 from config import (
     CANVAS_BG,
     COMMUNITY_COLORS,
@@ -42,158 +39,69 @@ from utils.helpers import (
 
 # ── Physics options ───────────────────────────────────────────────────────────
 
-def get_physics_options(
-    node_count: int,
-    navigation_buttons: bool = False,
-    layout_spread: bool = False,
-    label_min: int = 16,
-    label_max: int = 70,
-    label_threshold: int = 1,
-    node_scale_min: int = 30,
-    node_scale_max: int = 150,
-    freeze_layout: bool = False,
-) -> Dict:
+def get_physics_options(node_count: int) -> Dict:
     """
-    Physics / styling options for vis.js.
-
-    Default (layout_spread=False): Barnes-Hut tuned per node count.
-    layout_spread=True: switches to forceAtlas2Based which is specifically
-    designed for community-graph visualisation (same family as VOSviewer /
-    Gephi) — produces clear cluster separation without ball collapse.
+    Return Barnes-Hut physics options tuned to graph size.
+    Small graphs (<50 nodes): spread out more.
+    Large graphs (>500 nodes): compress to maintain readability.
     """
-    if layout_spread:
-        if freeze_layout:
-            physics_section = {"enabled": False}
-        else:
-            # VOSviewer-faithful forceAtlas2Based settings.
-            # centralGravity 0.015 keeps disconnected clusters on one canvas
-            # (was 0.003 — too weak, clusters drifted apart as islands).
-            # springLength 150 + springConstant 0.08 pull inter-cluster edges
-            # together. avoidOverlap 0.8 prevents node stacking without over-
-            # compressing the layout. damping 0.92 stops ball-collapse.
-            physics_section = {
-                "enabled": True,
-                "solver": "forceAtlas2Based",
-                "forceAtlas2Based": {
-                    "gravitationalConstant": -26,
-                    "centralGravity": 0.0008,
-                    "springLength": 60,
-                    "springConstant": 0.12,
-                    "damping": 0.95,
-                    "avoidOverlap": 1.0,
-                },
-                "maxVelocity": 50,
-                "minVelocity": 0.3,
-                "stabilization": {
-                    "enabled": True,
-                    "iterations": 600,
-                    "updateInterval": 10,
-                    "fit": True,
-                },
-                "timestep": 0.2,
-            }
+    if node_count < 50:
+        grav = -5000
+        spring = 220
+    elif node_count > 500:
+        grav = -12000
+        spring = 120
     else:
-        if node_count < 50:
-            grav, spring, central = -4000, 160, 0.08
-        elif node_count > 500:
-            grav, spring, central = -8000, 110, 0.12
-        else:
-            grav, spring, central = -6000, 130, 0.10
+        grav = -8000
+        spring = 160
 
-        physics_section = {
+    return {
+        "physics": {
             "enabled": True,
             "barnesHut": {
                 "gravitationalConstant": grav,
-                "centralGravity": central,
+                "centralGravity": 0.25,
                 "springLength": spring,
-                "springConstant": 0.04,
-                "damping": 0.18,
-                "avoidOverlap": 1.0,
+                "springConstant": 0.03,
+                "damping": 0.09,
+                "avoidOverlap": 0.6,
             },
             "maxVelocity": 50,
             "minVelocity": 0.5,
             "stabilization": {
                 "enabled": True,
-                "iterations": 1500,
-                "updateInterval": 25,
+                "iterations": 1200,
+                "updateInterval": 20,
                 "fit": True,
             },
             "timestep": 0.4,
-        }
-
-    opts: Dict = {
-        "physics": physics_section,
+        },
         "interaction": {
             "hover": True,
             "tooltipDelay": 150,
             "hideEdgesOnDrag": True,
             "hideEdgesOnZoom": False,
             "multiselect": True,
-            "navigationButtons": navigation_buttons,
+            "navigationButtons": False,
             "keyboard": {"enabled": False},
-            "zoomView": True,
         },
-        "nodes": {
-            "chosen": False,
-            "physics": True,
-            "borderWidth": 0,
-            "borderWidthSelected": 0,
-            "color": {
-                "border": "rgba(0,0,0,0)",
-                "highlight": {"border": "rgba(0,0,0,0)"},
-                "hover": {"border": "rgba(0,0,0,0)"},
-            },
-            "shadow": {
-                "enabled": False,
-            },
-            "scaling": {
-                "min": node_scale_min,
-                "max": node_scale_max,
-                "label": {
-                    "enabled": True,
-                    "min": label_min,
-                    "max": label_max,
-                    # drawThreshold 0 — always draw every label; never hide
-                    # them based on zoom (was 1, which hid tiny labels at
-                    # fit-to-screen zoom, making all peripheral labels invisible).
-                    "drawThreshold": label_threshold,
-                    "maxVisible": 9999,
-                },
-            },
-            "font": {
-                "face": "Arial, sans-serif",
-                "strokeWidth": 3,
-                "strokeColor": "#FFFFFF",
-            },
-        },
+        "nodes": {"chosen": True, "physics": True},
         "edges": {
-            "chosen": False,
+            "chosen": True,
             "physics": True,
-            "width": 0.8,
             "hoverWidth": 2.5,
             "selectionWidth": 3.0,
-            "scaling": {"min": 0.5, "max": 4},
-            "color": {"opacity": 0.35},
         },
     }
-    # improvedLayout uses Kamada-Kawai for initial placement before physics
-    # runs, which prevents the circular-ring initialization that spring/random
-    # layouts produce when community clusters have no inter-cluster edges.
-    if layout_spread and not freeze_layout:
-        opts["layout"] = {
-            "improvedLayout": True,
-            "hierarchical": {"enabled": False},
-        }
-    return opts
 
 
 # ── Tooltip container style ───────────────────────────────────────────────────
 
 _TOOLTIP_STYLE = (
-    "background:#FFFFFF;border:1px solid #D1D5DB;border-radius:6px;"
+    "background:#1C2539;border:1px solid #3B4A6B;border-radius:8px;"
     "padding:10px 14px;font-family:'Open Sans',Arial,sans-serif;"
-    "font-size:12px;color:#111827;max-width:260px;"
-    "box-shadow:0 4px 16px rgba(0,0,0,0.15);line-height:1.6;"
+    "font-size:12px;color:#F0F4FF;max-width:260px;"
+    "box-shadow:0 4px 16px rgba(0,0,0,0.5);line-height:1.6;"
 )
 
 def _wrap_tooltip(content: str) -> str:
@@ -231,27 +139,12 @@ def _compute_edge_widths(graph: nx.Graph) -> Dict[Tuple, float]:
 
 # ── Label visibility ──────────────────────────────────────────────────────────
 
-def _label_font(
-    weight: float,
-    p25: float,
-    p50: float,
-    p75: float,
-    p90: float,
-) -> Dict:
-    """
-    VOSviewer-style dramatic font scaling on white background.
-    Top nodes get very large dark text; all nodes remain labeled.
-    """
-    face = "Arial"
-    if weight >= p90:
-        return {"size": 56, "color": "#111827", "face": face}
+def _label_font(weight: float, p50: float, p75: float) -> Dict:
     if weight >= p75:
-        return {"size": 38, "color": "#111827", "face": face}
+        return {"size": 13, "color": "#D1D5DB"}
     if weight >= p50:
-        return {"size": 26, "color": "#1F2937", "face": face}
-    if weight >= p25:
-        return {"size": 18, "color": "#374151", "face": face}
-    return {"size": 13, "color": "#4B5563", "face": face}
+        return {"size": 11, "color": "#9CA3AF"}
+    return {"size": 10, "color": "rgba(0,0,0,0)"}
 
 
 # ── PyVis HTML post-processing ────────────────────────────────────────────────
@@ -260,44 +153,7 @@ _STABILIZE_JS = """
 <script>
 network.once('stabilizationIterationsDone', function() {
   network.setOptions({ physics: { enabled: false } });
-  network.fit({ animation: { duration: 800, easingFunction: 'easeInOutQuad' } });
 });
-// Wire the vis.js navigation "Fit all nodes" button to network.fit()
-// Must wait a tick for the button to be injected into the DOM.
-setTimeout(function() {
-  var btn = document.querySelector('.vis-button.vis-zoomExtends');
-  if (btn) {
-    btn.addEventListener('click', function(e) {
-      e.preventDefault();
-      network.fit({ animation: { duration: 800, easingFunction: 'easeInOutQuad' } });
-    });
-  }
-}, 600);
-</script>
-"""
-
-# Used for the co-authorship network where physics is disabled (pre-computed
-# positions). stabilizationIterationsDone never fires when physics is off, so
-# we use a plain setTimeout to fit the view after the first draw.
-_COAUTH_STABILIZE_JS = """
-<script>
-// Physics is disabled (pre-computed positions). stabilizationIterationsDone
-// never fires, so use setTimeout to fit all nodes into the viewport.
-setTimeout(function() {
-  network.fit({ animation: { duration: 300, easingFunction: 'easeInOutQuad' } });
-}, 250);
-// Wire the "Fit to Screen" navigation button (if visible) to network.fit()
-setTimeout(function() {
-  var btn = document.querySelector('[title="Fit all nodes"]') ||
-            document.querySelector('[title="fit all"]') ||
-            document.querySelector('.vis-button.vis-zoomExtends');
-  if (btn) {
-    btn.addEventListener('click', function(e) {
-      e.stopPropagation();
-      network.fit({ animation: { duration: 400, easingFunction: 'easeInOutQuad' } });
-    });
-  }
-}, 400);
 </script>
 """
 
@@ -305,62 +161,37 @@ _HIGHLIGHT_JS = """
 <script>
 var allNodes = network.body.data.nodes;
 var allEdges = network.body.data.edges;
-var _clickedNodeId  = null;
-var _lastHoveredId  = null;
-var _hoverRaf       = null;
-
-function _applyNeighbourHighlight(nodeId) {
-  var conn  = new Set(network.getConnectedNodes(nodeId));
-  conn.add(nodeId);
-  var econn = new Set(network.getConnectedEdges(nodeId));
-  allNodes.update(allNodes.getIds().map(function(id) {
-    return { id: id, opacity: conn.has(id) ? 1.0 : 0.12 };
-  }));
-  allEdges.update(allEdges.getIds().map(function(id) {
-    return { id: id, opacity: econn.has(id) ? 1.0 : 0.04 };
-  }));
-}
-
-function _restoreAll() {
-  allNodes.update(allNodes.getIds().map(function(id) { return { id: id, opacity: 1.0 }; }));
-  allEdges.update(allEdges.getIds().map(function(id) { return { id: id, opacity: 1.0 }; }));
-}
-
-// Use mousemove + getNodeAt for reliable cross-browser hover detection.
-// Throttled to one check per animation frame to avoid performance issues.
-var _canvas = network.body.container;
-_canvas.addEventListener('mousemove', function(e) {
-  if (_clickedNodeId !== null) return;
-  if (_hoverRaf) return;
-  var cx = e.clientX, cy = e.clientY;
-  _hoverRaf = requestAnimationFrame(function() {
-    _hoverRaf = null;
-    var rect   = _canvas.getBoundingClientRect();
-    var nodeId = network.getNodeAt({ x: cx - rect.left, y: cy - rect.top });
-    if (nodeId !== undefined && nodeId !== _lastHoveredId) {
-      _lastHoveredId = nodeId;
-      _applyNeighbourHighlight(nodeId);
-    } else if (nodeId === undefined && _lastHoveredId !== null) {
-      _lastHoveredId = null;
-      _restoreAll();
-    }
-  });
-});
-
-_canvas.addEventListener('mouseleave', function() {
-  _lastHoveredId = null;
-  _hoverRaf = null;
-  if (_clickedNodeId === null) _restoreAll();
-});
 
 network.on('click', function(params) {
   if (params.nodes.length === 0) {
-    _clickedNodeId = null;
-    _restoreAll();
+    // Click on empty canvas — restore full opacity
+    var nodeUpdates = [];
+    allNodes.getIds().forEach(function(id) {
+      nodeUpdates.push({ id: id, opacity: 1.0 });
+    });
+    allNodes.update(nodeUpdates);
+    var edgeUpdates = [];
+    allEdges.getIds().forEach(function(id) {
+      var e = allEdges.get(id);
+      edgeUpdates.push({ id: id, color: e._originalColor || e.color });
+    });
+    allEdges.update(edgeUpdates);
     return;
   }
-  _clickedNodeId = params.nodes[0];
-  _applyNeighbourHighlight(_clickedNodeId);
+  var clickedId = params.nodes[0];
+  var connectedNodes = new Set(network.getConnectedNodes(clickedId));
+  connectedNodes.add(clickedId);
+  var nodeUpdates = [];
+  allNodes.getIds().forEach(function(id) {
+    nodeUpdates.push({ id: id, opacity: connectedNodes.has(id) ? 1.0 : 0.15 });
+  });
+  allNodes.update(nodeUpdates);
+  var connectedEdges = new Set(network.getConnectedEdges(clickedId));
+  var edgeUpdates = [];
+  allEdges.getIds().forEach(function(id) {
+    edgeUpdates.push({ id: id, opacity: connectedEdges.has(id) ? 1.0 : 0.05 });
+  });
+  allEdges.update(edgeUpdates);
 });
 
 network.on('doubleClick', function(params) {
@@ -373,11 +204,9 @@ network.on('doubleClick', function(params) {
 </script>
 """
 
-def _post_process_html(html: str, node_count: int = 0, use_precomputed: bool = False) -> str:
+def _post_process_html(html: str, node_count: int = 0) -> str:
     """
-    Set canvas background and inject stabilization + interaction JavaScript.
-    use_precomputed=True: physics is off, use setTimeout fit instead of
-    stabilizationIterationsDone (which never fires when physics=False).
+    Set dark background and inject stabilization + interaction JavaScript.
     """
     html = html.replace(
         "background-color: #ffffff;", f"background-color: {CANVAS_BG};"
@@ -389,17 +218,17 @@ def _post_process_html(html: str, node_count: int = 0, use_precomputed: bool = F
         rf'\1background:{CANVAS_BG};',
         html,
     )
-    stabilize_js = _COAUTH_STABILIZE_JS if use_precomputed else _STABILIZE_JS
+    # Inject JS before </body>
     html = html.replace(
-        "</body>", stabilize_js + _HIGHLIGHT_JS + "</body>"
+        "</body>", _STABILIZE_JS + _HIGHLIGHT_JS + "</body>"
     )
     return html
 
 
-def _pyvis_to_html(net, node_count: int = 0, use_precomputed: bool = False) -> str:
+def _pyvis_to_html(net, node_count: int = 0) -> str:
     """Generate PyVis HTML string (no disk write)."""
     html = net.generate_html(notebook=False)
-    return _post_process_html(html, node_count, use_precomputed=use_precomputed)
+    return _post_process_html(html, node_count)
 
 
 # ── Controls panel ────────────────────────────────────────────────────────────
@@ -477,95 +306,6 @@ def _render_controls(
 
 # ── Network rendering core ────────────────────────────────────────────────────
 
-def _compute_coauth_positions(graph: nx.Graph) -> Dict:
-    """
-    VOSviewer-style 2-stage layout using only NetworkX spring_layout.
-    Stage 1: place community centroids using spring layout on a community graph.
-    Stage 2: place nodes within each community using spring layout on subgraph.
-    Returns dict[node -> (x, y)] in vis.js canvas pixels.
-    Physics is disabled after this so vis.js draws without simulation.
-    """
-    if graph.number_of_nodes() == 0:
-        return {}
-
-    # Group nodes by community_id
-    comms: Dict[int, list] = {}
-    for n in graph.nodes():
-        cid = graph.nodes[n].get("community_id", 0)
-        comms.setdefault(cid, []).append(n)
-    n_comms = len(comms)
-
-    # Build inter-community graph to use as macro layout guide.
-    # Even if there are zero inter-cluster edges in the real graph,
-    # we add a small synthetic weight between all community pairs so
-    # the spring layout still produces a reasonable spread.
-    comm_g: nx.Graph = nx.Graph()
-    for cid in comms:
-        comm_g.add_node(cid)
-    for u, v in graph.edges():
-        cu = graph.nodes[u].get("community_id", 0)
-        cv = graph.nodes[v].get("community_id", 0)
-        if cu != cv:
-            if comm_g.has_edge(cu, cv):
-                comm_g[cu][cv]["weight"] += 1
-            else:
-                comm_g.add_edge(cu, cv, weight=1)
-    # Add synthetic weak edges between all community pairs that have no real edge.
-    # This prevents completely disconnected communities from collapsing together
-    # or being placed randomly — they get evenly spread across the canvas.
-    all_cids = list(comms.keys())
-    for i in range(len(all_cids)):
-        for j in range(i + 1, len(all_cids)):
-            if not comm_g.has_edge(all_cids[i], all_cids[j]):
-                comm_g.add_edge(all_cids[i], all_cids[j], weight=0.01)
-
-    # Stage 1: macro layout — place community centroids.
-    # k = 1/sqrt(n) is the default; we use a larger k for more spread.
-    k_macro = 2.0 / math.sqrt(max(n_comms, 1))
-    macro_pos = nx.spring_layout(
-        comm_g,
-        k=k_macro,
-        iterations=300,
-        seed=42,
-        scale=1.0,
-        weight="weight",
-    )
-
-    # Stage 2: micro layout — place nodes within each community.
-    positions: Dict = {}
-    for cid, nodes in comms.items():
-        cx, cy = macro_pos.get(cid, (0.0, 0.0))
-        if len(nodes) == 1:
-            positions[nodes[0]] = (cx, cy)
-            continue
-        subg = graph.subgraph(nodes)
-        n_sub = len(nodes)
-        micro_scale = 0.042 * math.sqrt(n_sub)
-        k_micro = 0.9 / math.sqrt(max(n_sub, 1))
-        micro_pos = nx.spring_layout(
-            subg, k=k_micro, iterations=100, seed=42, scale=micro_scale
-        )
-        for node, (mx, my) in micro_pos.items():
-            positions[node] = (cx + mx, cy + my)
-
-    # Normalise all positions into vis.js canvas space (origin = centre).
-    # Use a large canvas so fit-to-screen shows all clusters clearly spread out.
-    xs = [p[0] for p in positions.values()]
-    ys = [p[1] for p in positions.values()]
-    x_lo, x_hi = min(xs), max(xs)
-    y_lo, y_hi = min(ys), max(ys)
-    rx = max(x_hi - x_lo, 1e-9)
-    ry = max(y_hi - y_lo, 1e-9)
-    half_w, half_h = 1600.0, 1280.0
-    margin = 0.04
-    result: Dict = {}
-    for n, (x, y) in positions.items():
-        px = ((x - x_lo) / rx * (1 - 2 * margin) + margin) * 2 * half_w - half_w
-        py = ((y - y_lo) / ry * (1 - 2 * margin) + margin) * 2 * half_h - half_h
-        result[n] = (px, py)
-    return result
-
-
 def _build_pyvis_network(
     graph: nx.Graph,
     node_sizes: Dict,
@@ -576,121 +316,80 @@ def _build_pyvis_network(
     edge_tooltip_fn,
     directed: bool = False,
     shape_fn=None,
-    smooth_edges: bool = False,
-    navigation_buttons: bool = False,
-    layout_spread: bool = False,
-    label_min: int = 16,
-    label_max: int = 70,
-    label_threshold: int = 1,
-    node_scale_min: int = 30,
-    node_scale_max: int = 150,
-    initial_positions: Optional[Dict] = None,
 ) -> Any:
     """
     Build a PyVis Network object from a NetworkX graph with full
     VOSviewer-faithful styling applied.
-
-    When initial_positions is provided (dict node->(x,y)), each node is placed
-    at its pre-computed position with physics=False so vis.js skips simulation.
     """
     try:
         from pyvis.network import Network
     except ImportError as exc:
         raise ImportError("pyvis is not installed. Run: pip install pyvis") from exc
 
+    w_list = list(node_weights.values())
+    p50 = percentile(w_list, 50) if w_list else 1.0
+    p75 = percentile(w_list, 75) if w_list else 1.0
+
     net = Network(
         height="850px",
         width="100%",
         directed=directed,
         bgcolor=CANVAS_BG,
-        font_color="#111827",
+        font_color="#D1D5DB",
     )
     net.toggle_physics(True)
 
     for node in graph.nodes():
         data = graph.nodes[node]
         fill_hex = data.get("color_hex", COMMUNITY_COLORS[0])
+        border_hex = lighten_hex(fill_hex, 0.30)
+        size = node_sizes.get(node, NODE_SIZE_MIN)
         weight = node_weights.get(node, 1)
         label = label_fn(node, data)
         tooltip = tooltip_fn(node, data, graph)
         shape = shape_fn(data) if shape_fn else "dot"
+        font = _label_font(weight, p50, p75)
 
-        # Use value= (not size=) so vis.js scaling.label fires and the
-        # font size scales proportionally — this is what makes VOSviewer-
-        # style dramatic label scaling work.
-        # Per-node vis_color dict (rgba semi-transparent) takes priority over
-        # the plain hex string so coauth nodes get proper rgba borders/fills.
-        vis_color = data.get("vis_color", fill_hex)
-        node_kwargs: Dict[str, Any] = dict(
+        node_color = {
+            "background": fill_hex,
+            "border": border_hex,
+            "highlight": {"background": fill_hex, "border": "#FFFFFF"},
+            "hover": {"background": fill_hex, "border": "#FFFFFF"},
+        }
+
+        net.add_node(
+            node,
             label=label,
             title=tooltip,
-            value=float(weight),
+            size=size,
             shape=shape,
-            color=vis_color,
+            color=node_color,
+            borderWidth=2,
+            font=font,
         )
-        # Per-node border width when a full color dict is provided
-        if isinstance(vis_color, dict):
-            node_kwargs["borderWidth"] = 1.5
-            node_kwargs["borderWidthSelected"] = 2.5
-        # Per-node font: vis_font (full dict) takes priority over legacy font_color
-        if "vis_font" in data:
-            node_kwargs["font"] = data["vis_font"]
-        elif "font_color" in data:
-            node_kwargs["font"] = {
-                "color": data["font_color"],
-                "face": "Inter, Arial, sans-serif",
-                "strokeWidth": 3,
-                "strokeColor": "#FFFFFF",
-            }
-        # Pre-computed position: pin this node, skip physics for it
-        if initial_positions is not None and node in initial_positions:
-            px, py = initial_positions[node]
-            node_kwargs["x"] = px
-            node_kwargs["y"] = py
-            node_kwargs["physics"] = False
-        net.add_node(node, **node_kwargs)
 
     for u, v in graph.edges():
-        u_color = graph.nodes[u].get("color_hex", COMMUNITY_COLORS[0])
-        v_color = graph.nodes[v].get("color_hex", COMMUNITY_COLORS[0])
-        u_cid   = graph.nodes[u].get("community_id", -1)
-        v_cid   = graph.nodes[v].get("community_id", -1)
-        # Prefer the colored (non-grey) endpoint; when both are colored use u
-        grey = _COAUTH_GREY
-        edge_color_hex = v_color if u_color == grey and v_color != grey else u_color
-        # Intra-cluster edges slightly more transparent; inter-cluster edges
-        # must be fully visible (0.45) to show cross-community connections.
-        is_same_cluster = (u_cid == v_cid)
-        edge_opacity = 0.40 if is_same_cluster else 0.45
+        src_community = graph.nodes[u].get("community_id", 0)
+        src_color_hex = graph.nodes[u].get("color_hex", COMMUNITY_COLORS[0])
+        edge_color = {
+            "color": hex_to_rgba(src_color_hex, 0.25),
+            "highlight": hex_to_rgba(src_color_hex, 0.90),
+            "hover": hex_to_rgba(src_color_hex, 0.70),
+        }
         width = edge_widths.get((u, v), EDGE_WIDTH_MIN)
         edge_data = graph[u][v] if isinstance(graph, nx.Graph) else {}
         tooltip = edge_tooltip_fn(u, v, edge_data)
-        if smooth_edges:
-            smooth: Any = {"type": "continuous", "roundness": 0.3}
-        elif directed:
-            smooth = {"type": "curvedCW", "roundness": 0.2}
-        else:
-            smooth = False
         net.add_edge(
             u, v,
             width=width,
-            color=hex_to_rgba(edge_color_hex, edge_opacity),
+            color=edge_color,
             title=tooltip,
             arrows="" if not directed else "to",
-            smooth=smooth,
+            smooth=False if not directed else
+                {"type": "curvedCW", "roundness": 0.2},
         )
 
-    physics_opts = get_physics_options(
-        graph.number_of_nodes(),
-        navigation_buttons=navigation_buttons,
-        layout_spread=layout_spread,
-        label_min=label_min,
-        label_max=label_max,
-        label_threshold=label_threshold,
-        node_scale_min=node_scale_min,
-        node_scale_max=node_scale_max,
-        freeze_layout=(initial_positions is not None),
-    )
+    physics_opts = get_physics_options(graph.number_of_nodes())
     net.set_options(json.dumps(physics_opts))
     return net
 
@@ -709,63 +408,6 @@ def _default_edge_tooltip(u, v, data) -> str:
 
 
 # ── A) Co-authorship network ──────────────────────────────────────────────────
-
-# Grey fill used for within-cluster-only authors in the co-authorship network
-_COAUTH_GREY = "#A0A0A0"
-
-# Cluster color palette for cross-cluster (bridge) authors — user-specified
-_COAUTH_CLUSTER_COLORS = [
-    "#3498DB",  # 0 blue
-    "#2ECC71",  # 1 green
-    "#E74C3C",  # 2 red
-    "#F1C40F",  # 3 yellow
-    "#9B59B6",  # 4 purple
-    "#E67E22",  # 5 orange
-    "#1ABC9C",  # 6 teal
-    "#34495E",  # 7 dark blue
-    "#D35400",  # 8 burnt orange
-    "#27AE60",  # 9 emerald
-]
-
-
-def _compute_colored_nodes_coauth(graph: nx.Graph) -> set:
-    """
-    VOSviewer coloring rule:
-    Stage 1 — nodes with at least one cross-cluster edge are colored.
-    Stage 2 fallback — when ALL edges are intra-cluster (94 disconnected
-    Louvain communities with no cross-cluster edges), color the top half
-    of nodes by degree and grey out the bottom half. This gives the
-    VOSviewer visual effect of hubs colored, leaf nodes grey.
-    """
-    if graph.number_of_nodes() == 0:
-        return set()
-
-    cross: set = set()
-    for u, v in graph.edges():
-        cid_u = graph.nodes[u].get("community_id", -1)
-        cid_v = graph.nodes[v].get("community_id", -1)
-        if cid_u != cid_v:
-            cross.add(u)
-            cross.add(v)
-
-    if cross:
-        return cross
-
-    # Stage 2: no cross-cluster edges — color top 50% by degree.
-    # Nodes with degree >= median are colored; below-median nodes are grey.
-    degrees = [(n, graph.degree(n)) for n in graph.nodes()]
-    if not degrees:
-        return set()
-    deg_values = sorted([d for _, d in degrees])
-    median_deg = deg_values[len(deg_values) // 2]
-    # Always color nodes with degree >= median AND degree > 1
-    # (singletons and pairs always grey regardless)
-    colored = set()
-    for n, d in degrees:
-        if d > 1 and d >= median_deg:
-            colored.add(n)
-    return colored if colored else {n for n, d in degrees if d > 0}
-
 
 def render_coauthorship_network(
     graph: nx.Graph,
@@ -803,74 +445,14 @@ def render_coauthorship_network(
     filtered = _filter_graph(graph, min_link, min_size, sel_comms, search)
 
     cache_key = (
-        f"_coauth_html_{_VIZ_VERSION}_{key_prefix}_{min_link}_{min_size}_"
+        f"_coauth_html_{key_prefix}_{min_link}_{min_size}_"
         f"{','.join(map(str, sel_comms))}_{search}_{freeze}"
     )
     if cache_key not in st.session_state or st.session_state[cache_key] is None:
         node_sizes = _compute_node_sizes(filtered)
         edge_widths = _compute_edge_widths(filtered)
-
-        # VOSviewer-faithful sizing: node size = publication count (paper weight
-        # attribute set by the pipeline), normalized to 0–100 so vis.js maps it
-        # linearly onto [node_scale_min, node_scale_max].
-        # No minimum floor — authors with few papers appear as small dots,
-        # hub authors with many papers appear as large circles, matching pic 2.
-        raw_weights = {n: max(filtered.nodes[n].get("weight", 1), 1) for n in filtered.nodes()}
-        max_raw = max(raw_weights.values(), default=1)
-        node_weights = {n: (w / max_raw) * 100 for n, w in raw_weights.items()}
-
-        # Build cross-cluster colored node set; nodes with only intra-cluster
-        # edges are grey.
-        colored_nodes = _compute_colored_nodes_coauth(filtered)
-        viz_graph = filtered.copy()
-
-        def _make_vis_color(fill_hex: str, alpha_fill: float = 0.65) -> dict:
-            alpha_border = min(alpha_fill + 0.20, 1.0)
-            bg  = hex_to_rgba(fill_hex, alpha_fill)
-            brd = hex_to_rgba(fill_hex, alpha_border)
-            return {
-                "background": bg,
-                "border": brd,
-                "highlight": {"background": hex_to_rgba(fill_hex, 0.85), "border": brd},
-                "hover":     {"background": hex_to_rgba(fill_hex, 0.75), "border": brd},
-                "opacity": alpha_fill,
-            }
-
-        # Per-node font sizes: scale linearly from 10 (peripheral) to 18 (hub)
-        degrees_list = [filtered.degree(n) for n in filtered.nodes()]
-        max_deg = max(degrees_list) if degrees_list else 1
-
-        for node in viz_graph.nodes():
-            cid = viz_graph.nodes[node].get("community_id", 0)
-            is_grey = node not in colored_nodes
-            if is_grey:
-                viz_graph.nodes[node]["color_hex"] = _COAUTH_GREY
-            else:
-                # Always re-derive from community_id so color is consistent
-                # regardless of what the upstream pipeline stored.
-                viz_graph.nodes[node]["color_hex"] = _COAUTH_CLUSTER_COLORS[
-                    cid % len(_COAUTH_CLUSTER_COLORS)
-                ]
-            fill = viz_graph.nodes[node]["color_hex"]
-            viz_graph.nodes[node]["vis_color"] = _make_vis_color(fill, 0.65)
-
-            # Per-node font: dramatically scale font size by degree (VOSviewer style)
-            deg = filtered.degree(node)
-            # Map degree to font size: peripheral=11px, hub=48px
-            # Font size scales with degree (collaboration breadth) using sqrt
-            # for a perceptually-linear hierarchy.  Canvas is 3200×2560px and
-            # fit-to-screen zoom ≈ 0.28, so 14px canvas → ~4px screen (hidden
-            # by drawThreshold=8) and 80px canvas → ~22px screen (readable).
-            t = (deg / max(max_deg, 1)) ** 0.5
-            font_size = int(14 + t * 66)  # 14 to 80 canvas px
-            font_color = "#A0A0A0" if is_grey else "#111827"
-            viz_graph.nodes[node]["vis_font"] = {
-                "color": font_color,
-                "size": font_size,
-                "face": "Arial, sans-serif",
-                "strokeWidth": 3,
-                "strokeColor": "#FFFFFF",
-            }
+        node_weights = {n: filtered.nodes[n].get("weight", 1)
+                        for n in filtered.nodes()}
 
         def label_fn(node, data):
             return format_author_short(str(node))
@@ -905,18 +487,13 @@ def render_coauthorship_network(
             )
             return _wrap_tooltip(content)
 
-        positions = _compute_coauth_positions(viz_graph)
         net = _build_pyvis_network(
-            viz_graph, node_sizes, edge_widths, node_weights,
+            filtered, node_sizes, edge_widths, node_weights,
             label_fn, tooltip_fn, _default_edge_tooltip,
-            smooth_edges=True, navigation_buttons=True, layout_spread=True,
-            node_scale_min=4, node_scale_max=80,
-            label_min=14, label_max=80, label_threshold=8,
-            initial_positions=positions,
         )
         if freeze:
             net.toggle_physics(False)
-        html = _pyvis_to_html(net, filtered.number_of_nodes(), use_precomputed=True)
+        html = _pyvis_to_html(net, filtered.number_of_nodes())
         st.session_state[cache_key] = html
     else:
         html = st.session_state[cache_key]
@@ -974,10 +551,10 @@ def _render_coauth_stats(graph: nx.Graph):
 
 _KW_SHAPES = {
     "author_keyword": "dot",
-    "mesh_descriptor": "dot",
-    "mesh_qualifier": "dot",
-    "chemical": "dot",
-    "publication_type": "dot",
+    "mesh_descriptor": "square",
+    "mesh_qualifier": "triangle",
+    "chemical": "diamond",
+    "publication_type": "star",
 }
 
 _KW_TYPE_COLORS = {
@@ -1027,7 +604,7 @@ def render_keyword_network(
     filtered = _filter_graph(graph, min_link, min_size, sel_comms, search)
 
     cache_key = (
-        f"_kw_html_{_VIZ_VERSION}_{key_prefix}_{min_link}_{min_size}_"
+        f"_kw_html_{key_prefix}_{min_link}_{min_size}_"
         f"{','.join(map(str, sel_comms))}_{search}_{freeze}"
     )
     if cache_key not in st.session_state:
@@ -1172,7 +749,7 @@ def render_topic_network(
     filtered = _filter_graph(graph, min_link, min_size, sel_comms, search)
 
     cache_key = (
-        f"_topic_html_{_VIZ_VERSION}_{key_prefix}_{min_link}_{min_size}_"
+        f"_topic_html_{key_prefix}_{min_link}_{min_size}_"
         f"{','.join(map(str, sel_comms))}_{search}_{freeze}_{year_filter}"
     )
     if cache_key not in st.session_state:

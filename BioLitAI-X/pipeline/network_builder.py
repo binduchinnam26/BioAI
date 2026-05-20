@@ -119,32 +119,16 @@ class NetworkBuilder:
 
         self._add_centrality_metrics(G)
 
-        # Use Louvain for community detection.
-        # Additionally assign connected-component IDs so the visualization
-        # layer can identify which authors share the same paper group.
         partition = _louvain_communities(G)
         color_map = _assign_community_colors(G, partition)
-
-        # Map each connected component to a stable integer ID.
-        # This gives the visualization a reliable cross-cluster edge signal
-        # even when Louvain assigns multiple communities inside one component.
-        comp_map: Dict[Any, int] = {}
-        for comp_id, comp in enumerate(nx.connected_components(G)):
-            for node in comp:
-                comp_map[node] = comp_id
-
         for node in G.nodes():
-            louvain_cid = partition.get(node, 0)
-            G.nodes[node]["community_id"] = louvain_cid
-            G.nodes[node]["component_id"] = comp_map.get(node, 0)
-            G.nodes[node]["color_hex"] = color_map[louvain_cid]
+            cid = partition.get(node, 0)
+            G.nodes[node]["community_id"] = cid
+            G.nodes[node]["color_hex"] = color_map[cid]
 
         logger.info(
-            "Co-authorship network: %d authors, %d edges, %d Louvain communities, "
-            "%d connected components",
+            "Co-authorship network: %d authors, %d edges",
             G.number_of_nodes(), G.number_of_edges(),
-            len(set(partition.values())),
-            len(list(nx.connected_components(G))),
         )
         return G
 
