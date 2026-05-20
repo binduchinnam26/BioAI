@@ -60,18 +60,20 @@ def get_physics_options(node_count: int, network_type: str = "default") -> Dict:
         spring = 150
         overlap = 0.9
 
-    # Keyword networks: aggressive spread so clusters fill the full canvas
+    # Keyword networks: strong repulsion + compact springs → distinct separated clusters.
+    # Short springLength keeps intra-cluster nodes compact; huge repulsion pushes
+    # unconnected clusters far apart — replicating VOSviewer spatial separation.
     if network_type == "keyword":
-        grav = -20000        # strong repulsion pushes all nodes apart
-        central_grav = 0.004 # near-zero — eliminates pull back to canvas centre
-        spring = 360         # very long springs keep connected clusters far apart
-        spring_const = 0.012 # soft springs let clusters drift to equilibrium
-        damping = 0.09
+        grav = -65000        # massive repulsion dominates for non-connected nodes
+        central_grav = 0.001 # effectively zero — no pull back to canvas centre
+        spring = 180         # short: keeps each cluster internally compact
+        spring_const = 0.004 # very soft: inter-cluster springs barely attract
+        damping = 0.07
         overlap = 1.0
-        iterations = 4000
-        timestep = 0.26
-        max_vel = 90
-        min_vel = 0.20
+        iterations = 5000
+        timestep = 0.20
+        max_vel = 120
+        min_vel = 0.15
     else:
         central_grav = 0.15
         spring_const = 0.04
