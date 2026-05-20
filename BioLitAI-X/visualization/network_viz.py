@@ -17,7 +17,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import networkx as nx
 
 # Bump this whenever visualization styling changes to invalidate cached HTML.
-_VIZ_VERSION = "v37"
+_VIZ_VERSION = "v38"
 
 from config import (
     CANVAS_BG,
@@ -156,7 +156,7 @@ def get_physics_options(
                     # drawThreshold 0 — always draw every label; never hide
                     # them based on zoom (was 1, which hid tiny labels at
                     # fit-to-screen zoom, making all peripheral labels invisible).
-                    "drawThreshold": 0,
+                    "drawThreshold": label_threshold,
                     "maxVisible": 9999,
                 },
             },
@@ -556,7 +556,7 @@ def _compute_coauth_positions(graph: nx.Graph) -> Dict:
     y_lo, y_hi = min(ys), max(ys)
     rx = max(x_hi - x_lo, 1e-9)
     ry = max(y_hi - y_lo, 1e-9)
-    half_w, half_h = 10000.0, 8000.0
+    half_w, half_h = 1600.0, 1280.0
     margin = 0.04
     result: Dict = {}
     for n, (x, y) in positions.items():
@@ -711,7 +711,7 @@ def _default_edge_tooltip(u, v, data) -> str:
 # ── A) Co-authorship network ──────────────────────────────────────────────────
 
 # Grey fill used for within-cluster-only authors in the co-authorship network
-_COAUTH_GREY = "#969696"
+_COAUTH_GREY = "#A0A0A0"
 
 # Cluster color palette for cross-cluster (bridge) authors — user-specified
 _COAUTH_CLUSTER_COLORS = [
@@ -810,15 +810,14 @@ def render_coauthorship_network(
         node_sizes = _compute_node_sizes(filtered)
         edge_widths = _compute_edge_widths(filtered)
 
-        # VOSviewer-faithful sizing: drive node/label size by DEGREE (number of
-        # co-authors) rather than raw paper count.  Degree follows a power-law
-        # distribution so hub authors get dramatically larger nodes while
-        # peripheral authors stay as small background dots — exactly like VOSviewer.
-        # Use degree^1.5 so high-degree hub authors get dramatically larger
-        # nodes (VOSviewer effect) while peripheral nodes stay small.
-        raw_weights = {n: max(filtered.degree(n), 1) ** 1.5 for n in filtered.nodes()}
+        # VOSviewer-faithful sizing: node size = publication count (paper weight
+        # attribute set by the pipeline), normalized to 0–100 so vis.js maps it
+        # linearly onto [node_scale_min, node_scale_max].
+        # No minimum floor — authors with few papers appear as small dots,
+        # hub authors with many papers appear as large circles, matching pic 2.
+        raw_weights = {n: max(filtered.nodes[n].get("weight", 1), 1) for n in filtered.nodes()}
         max_raw = max(raw_weights.values(), default=1)
-        node_weights = {n: 15 + (w / max_raw) * 85 for n, w in raw_weights.items()}
+        node_weights = {n: (w / max_raw) * 100 for n, w in raw_weights.items()}
 
         # Build cross-cluster colored node set; nodes with only intra-cluster
         # edges are grey.
@@ -858,18 +857,18 @@ def render_coauthorship_network(
             # Per-node font: dramatically scale font size by degree (VOSviewer style)
             deg = filtered.degree(node)
             # Map degree to font size: peripheral=11px, hub=48px
+            # Font size scales with degree (collaboration breadth) using sqrt
+            # for a perceptually-linear hierarchy.  Canvas is 3200×2560px and
+            # fit-to-screen zoom ≈ 0.28, so 14px canvas → ~4px screen (hidden
+            # by drawThreshold=8) and 80px canvas → ~22px screen (readable).
             t = (deg / max(max_deg, 1)) ** 0.5
-            # Scale from 28px (leaf) to 120px (hub) in canvas units.
-            # These are canvas-space pixels — they appear smaller when
-            # zoomed out to fit-to-screen, so we use large values so
-            # they remain legible at the default fit-to-screen zoom.
-            font_size = int(28 + t * 92)  # range: 28 to 120 canvas px
-            font_color = "#888888" if is_grey else "#111827"
+            font_size = int(14 + t * 66)  # 14 to 80 canvas px
+            font_color = "#A0A0A0" if is_grey else "#111827"
             viz_graph.nodes[node]["vis_font"] = {
                 "color": font_color,
                 "size": font_size,
                 "face": "Arial, sans-serif",
-                "strokeWidth": 5,
+                "strokeWidth": 3,
                 "strokeColor": "#FFFFFF",
             }
 
@@ -911,8 +910,8 @@ def render_coauthorship_network(
             viz_graph, node_sizes, edge_widths, node_weights,
             label_fn, tooltip_fn, _default_edge_tooltip,
             smooth_edges=True, navigation_buttons=True, layout_spread=True,
-            node_scale_min=35, node_scale_max=350,
-            label_min=28, label_max=120, label_threshold=1,
+            node_scale_min=4, node_scale_max=80,
+            label_min=14, label_max=80, label_threshold=8,
             initial_positions=positions,
         )
         if freeze:
