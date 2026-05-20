@@ -164,18 +164,12 @@ def _compute_edge_widths(
 
 # ── Label visibility ──────────────────────────────────────────────────────────
 
-def _label_font(weight: float, w_min: float, w_max: float) -> Dict:
-    """Font size scales proportionally with sqrt(weight), matching VOSviewer."""
-    scaled = ((weight - w_min) / max(w_max - w_min, 1e-9)) ** 0.5
-    size = max(8, int(8 + scaled * 20))   # 8–28 px
-    stroke = 1 if scaled < 0.35 else (2 if scaled < 0.70 else 3)
-    return {
-        "size": size,
-        "color": "#000000",
-        "face": "arial",
-        "strokeWidth": stroke,
-        "strokeColor": "#FFFFFF",
-    }
+def _label_font(weight: float, p50: float, p75: float) -> Dict:
+    if weight >= p75:
+        return {"size": 16, "color": "#000000", "face": "arial", "strokeWidth": 3, "strokeColor": "#FFFFFF"}
+    if weight >= p50:
+        return {"size": 13, "color": "#000000", "face": "arial", "strokeWidth": 2, "strokeColor": "#FFFFFF"}
+    return {"size": 11, "color": "#000000", "face": "arial", "strokeWidth": 1, "strokeColor": "#FFFFFF"}
 
 
 # ── PyVis HTML post-processing ────────────────────────────────────────────────
@@ -444,8 +438,8 @@ def _build_pyvis_network(
         raise ImportError("pyvis is not installed. Run: pip install pyvis") from exc
 
     w_list = list(node_weights.values())
-    w_min_all = min(w_list) if w_list else 1.0
-    w_max_all = max(w_list) if w_list else 1.0
+    p50 = percentile(w_list, 50) if w_list else 1.0
+    p75 = percentile(w_list, 75) if w_list else 1.0
 
     net = Network(
         height="850px",
@@ -464,7 +458,7 @@ def _build_pyvis_network(
         label = label_fn(node, data)
         tooltip = tooltip_fn(node, data, graph)
         shape = shape_fn(data) if shape_fn else "dot"
-        font = _label_font(weight, w_min_all, w_max_all)
+        font = _label_font(weight, p50, p75)
 
         bg = hex_to_rgba(fill_hex, node_opacity) if node_opacity < 1.0 else fill_hex
         node_color = {
@@ -775,7 +769,7 @@ def render_keyword_network(
         net = _build_pyvis_network(
             filtered, node_sizes, edge_widths, node_weights,
             label_fn, tooltip_fn, _default_edge_tooltip,
-            edge_alpha=0.22, edge_smooth_type="dynamic",
+            edge_alpha=0.22, edge_smooth_type="dynamic", edge_roundness=0.07,
             node_opacity=0.78, network_type="keyword",
         )
         if freeze:
