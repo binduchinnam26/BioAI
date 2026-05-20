@@ -166,7 +166,7 @@ def _compute_edge_widths(
 
 def _label_font(weight: float, p50: float, p75: float) -> Dict:
     if weight >= p75:
-        return {"size": 16, "color": "#000000", "face": "arial", "strokeWidth": 3, "strokeColor": "#FFFFFF"}
+        return {"size": 32, "color": "#000000", "face": "arial", "strokeWidth": 3, "strokeColor": "#FFFFFF"}
     if weight >= p50:
         return {"size": 13, "color": "#000000", "face": "arial", "strokeWidth": 2, "strokeColor": "#FFFFFF"}
     return {"size": 11, "color": "#000000", "face": "arial", "strokeWidth": 1, "strokeColor": "#FFFFFF"}
