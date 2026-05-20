@@ -64,9 +64,9 @@ def get_physics_options(node_count: int, network_type: str = "default") -> Dict:
     # centralGravity=0 prevents circular ring. Stronger repulsion + longer softer
     # springs spread clusters wide across canvas without intra-cluster overlap.
     if network_type == "keyword":
-        grav = -90000        # stronger repulsion → larger physical coordinate space
+        grav = -55000        # strong repulsion separates clusters across canvas
         central_grav = 0.0   # zero — topology drives placement, no ring force
-        spring = 420         # long springs → nodes physically further apart so zoom is clear
+        spring = 220         # longer: gives nodes within each cluster room
         spring_const = 0.05  # soft: cluster structure without squashing nodes
         damping = 0.10
         overlap = 1.0
