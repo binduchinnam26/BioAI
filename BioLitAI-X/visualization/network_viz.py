@@ -60,21 +60,19 @@ def get_physics_options(node_count: int, network_type: str = "default") -> Dict:
         spring = 150
         overlap = 0.9
 
-    # Keyword networks: zero centralGravity + stiff short springs + strong repulsion.
-    # centralGravity=0 removes the radial circular force that was creating the ring
-    # pattern. Stiff springs (0.15) hold each community compact and rigid; massive
-    # repulsion (-45000) pushes those compact groups into distinct spatial regions —
-    # matching VOSviewer's non-circular, cluster-separated layout.
+    # Keyword networks: zero centralGravity + balanced spring/repulsion.
+    # centralGravity=0 prevents circular ring. Stronger repulsion + longer softer
+    # springs spread clusters wide across canvas without intra-cluster overlap.
     if network_type == "keyword":
-        grav = -45000        # strong repulsion between all node pairs
-        central_grav = 0.0   # zero — eliminates the circular ring symmetry
-        spring = 130         # short: intra-cluster nodes held tightly together
-        spring_const = 0.15  # stiff: each community forms a rigid compact group
-        damping = 0.12
+        grav = -55000        # strong repulsion separates clusters across canvas
+        central_grav = 0.0   # zero — topology drives placement, no ring force
+        spring = 220         # longer: gives nodes within each cluster room
+        spring_const = 0.05  # soft: cluster structure without squashing nodes
+        damping = 0.10
         overlap = 1.0
-        iterations = 5000
-        timestep = 0.18
-        max_vel = 80
+        iterations = 6000
+        timestep = 0.20
+        max_vel = 100
         min_vel = 0.10
     else:
         central_grav = 0.15
