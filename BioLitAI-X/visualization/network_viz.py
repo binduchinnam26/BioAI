@@ -436,6 +436,7 @@ def _build_pyvis_network(
     edge_alpha: float = 0.55,
     edge_roundness: float = 0.10,
     font_size_boost: int = 0,
+    node_opacity: float = 1.0,
     network_type: str = "default",
 ) -> Any:
     """
@@ -472,11 +473,12 @@ def _build_pyvis_network(
         if font_size_boost:
             font = {**font, "size": font["size"] + font_size_boost}
 
+        bg = hex_to_rgba(fill_hex, node_opacity) if node_opacity < 1.0 else fill_hex
         node_color = {
-            "background": fill_hex,
-            "border": fill_hex,
-            "highlight": {"background": fill_hex, "border": "#000000"},
-            "hover": {"background": fill_hex, "border": "#333333"},
+            "background": bg,
+            "border": bg,
+            "highlight": {"background": bg, "border": "#000000"},
+            "hover": {"background": bg, "border": "#333333"},
         }
 
         net.add_node(
@@ -781,7 +783,7 @@ def render_keyword_network(
             filtered, node_sizes, edge_widths, node_weights,
             label_fn, tooltip_fn, _default_edge_tooltip,
             edge_alpha=0.18, edge_roundness=0.30,
-            font_size_boost=14, network_type="keyword",
+            font_size_boost=14, node_opacity=0.78, network_type="keyword",
         )
         if freeze:
             net.toggle_physics(False)
