@@ -96,7 +96,7 @@ def get_physics_options(node_count: int) -> Dict:
             "physics": True,
             "hoverWidth": 2.5,
             "selectionWidth": 3.0,
-            "smooth": {"enabled": False},
+            "smooth": {"type": "continuous", "roundness": 0.1},
         },
     }
 
@@ -473,8 +473,8 @@ def _build_pyvis_network(
             color=edge_color,
             title=tooltip,
             arrows="" if not directed else "to",
-            smooth=False if not directed else
-                {"type": "curvedCW", "roundness": 0.2},
+            smooth={"type": "continuous", "roundness": 0.1} if not directed else
+                {"type": "curvedCW", "roundness": 0.15},
         )
 
     physics_opts = get_physics_options(graph.number_of_nodes())
