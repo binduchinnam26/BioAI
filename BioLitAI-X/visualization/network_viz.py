@@ -16,6 +16,8 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import networkx as nx
 
+_VIZ_VERSION = "v0"
+
 from config import (
     CANVAS_BG,
     COMMUNITY_COLORS,
