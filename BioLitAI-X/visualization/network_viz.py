@@ -429,6 +429,7 @@ def _build_pyvis_network(
     shape_fn=None,
     edge_alpha: float = 0.55,
     edge_roundness: float = 0.10,
+    font_size_boost: int = 0,
     network_type: str = "default",
 ) -> Any:
     """
@@ -462,6 +463,8 @@ def _build_pyvis_network(
         tooltip = tooltip_fn(node, data, graph)
         shape = shape_fn(data) if shape_fn else "dot"
         font = _label_font(weight, p50, p75)
+        if font_size_boost:
+            font = {**font, "size": font["size"] + font_size_boost}
 
         node_color = {
             "background": fill_hex,
@@ -771,7 +774,8 @@ def render_keyword_network(
         net = _build_pyvis_network(
             filtered, node_sizes, edge_widths, node_weights,
             label_fn, tooltip_fn, _default_edge_tooltip,
-            edge_alpha=0.18, edge_roundness=0.30, network_type="keyword",
+            edge_alpha=0.18, edge_roundness=0.30,
+            font_size_boost=10, network_type="keyword",
         )
         if freeze:
             net.toggle_physics(False)
