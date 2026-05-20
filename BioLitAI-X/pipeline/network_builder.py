@@ -60,6 +60,24 @@ def _louvain_communities(graph: nx.Graph) -> Dict[Any, int]:
         return {n: 0 for n in graph.nodes()}
 
 
+def _mark_isolated_communities(G: nx.Graph):
+    """
+    Communities with no edges connecting them to other communities become
+    grey (#AAAAAA), replicating VOSviewer's isolated-cluster rendering.
+    """
+    inter_community = set()
+    for u, v in G.edges():
+        cu = G.nodes[u].get("community_id", 0)
+        cv = G.nodes[v].get("community_id", 0)
+        if cu != cv:
+            inter_community.add(cu)
+            inter_community.add(cv)
+    for node in G.nodes():
+        cid = G.nodes[node].get("community_id", 0)
+        if cid not in inter_community:
+            G.nodes[node]["color_hex"] = "#AAAAAA"
+
+
 def _assign_community_colors(
     graph: nx.Graph, partition: Dict[Any, int]
 ) -> Dict[int, str]:
@@ -125,6 +143,8 @@ class NetworkBuilder:
             cid = partition.get(node, 0)
             G.nodes[node]["community_id"] = cid
             G.nodes[node]["color_hex"] = color_map[cid]
+
+        _mark_isolated_communities(G)
 
         logger.info(
             "Co-authorship network: %d authors, %d edges",

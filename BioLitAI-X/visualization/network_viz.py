@@ -16,7 +16,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import networkx as nx
 
-_VIZ_VERSION = "v0"
+_VIZ_VERSION = "v1"
 
 from config import (
     CANVAS_BG,
@@ -42,41 +42,39 @@ from utils.helpers import (
 # ── Physics options ───────────────────────────────────────────────────────────
 
 def get_physics_options(node_count: int) -> Dict:
-    """
-    Return Barnes-Hut physics options tuned to graph size.
-    Small graphs (<50 nodes): spread out more.
-    Large graphs (>500 nodes): compress to maintain readability.
-    """
     if node_count < 50:
-        grav = -5000
-        spring = 220
+        grav = -3000
+        spring = 200
+        overlap = 0.8
     elif node_count > 500:
-        grav = -12000
-        spring = 120
-    else:
         grav = -8000
-        spring = 160
+        spring = 100
+        overlap = 1.0
+    else:
+        grav = -5000
+        spring = 150
+        overlap = 0.9
 
     return {
         "physics": {
             "enabled": True,
             "barnesHut": {
                 "gravitationalConstant": grav,
-                "centralGravity": 0.25,
+                "centralGravity": 0.15,
                 "springLength": spring,
-                "springConstant": 0.03,
-                "damping": 0.09,
-                "avoidOverlap": 0.6,
+                "springConstant": 0.04,
+                "damping": 0.12,
+                "avoidOverlap": overlap,
             },
-            "maxVelocity": 50,
-            "minVelocity": 0.5,
+            "maxVelocity": 60,
+            "minVelocity": 0.3,
             "stabilization": {
                 "enabled": True,
-                "iterations": 1200,
-                "updateInterval": 20,
+                "iterations": 2000,
+                "updateInterval": 25,
                 "fit": True,
             },
-            "timestep": 0.4,
+            "timestep": 0.35,
         },
         "interaction": {
             "hover": True,
@@ -86,13 +84,19 @@ def get_physics_options(node_count: int) -> Dict:
             "multiselect": True,
             "navigationButtons": False,
             "keyboard": {"enabled": False},
+            "zoomView": True,
         },
-        "nodes": {"chosen": True, "physics": True},
+        "nodes": {
+            "chosen": True,
+            "physics": True,
+            "shadow": False,
+        },
         "edges": {
             "chosen": True,
             "physics": True,
             "hoverWidth": 2.5,
             "selectionWidth": 3.0,
+            "smooth": {"enabled": False},
         },
     }
 
@@ -143,10 +147,10 @@ def _compute_edge_widths(graph: nx.Graph) -> Dict[Tuple, float]:
 
 def _label_font(weight: float, p50: float, p75: float) -> Dict:
     if weight >= p75:
-        return {"size": 13, "color": "#D1D5DB"}
+        return {"size": 16, "color": "#000000", "face": "arial", "strokeWidth": 3, "strokeColor": "#FFFFFF"}
     if weight >= p50:
-        return {"size": 11, "color": "#9CA3AF"}
-    return {"size": 10, "color": "rgba(0,0,0,0)"}
+        return {"size": 13, "color": "#000000", "face": "arial", "strokeWidth": 2, "strokeColor": "#FFFFFF"}
+    return {"size": 11, "color": "#333333", "face": "arial", "strokeWidth": 1, "strokeColor": "#FFFFFF"}
 
 
 # ── PyVis HTML post-processing ────────────────────────────────────────────────
@@ -155,6 +159,7 @@ _STABILIZE_JS = """
 <script>
 network.once('stabilizationIterationsDone', function() {
   network.setOptions({ physics: { enabled: false } });
+  network.fit({ animation: { duration: 600, easingFunction: 'easeInOutQuad' } });
 });
 </script>
 """
@@ -206,23 +211,103 @@ network.on('doubleClick', function(params) {
 </script>
 """
 
+_CONTROLS_JS = """
+<script>
+(function() {
+  var style = document.createElement('style');
+  style.textContent = `
+    #vos-controls {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      z-index: 999;
+    }
+    #vos-controls button {
+      width: 28px;
+      height: 28px;
+      background: #fff;
+      border: 1px solid #ccc;
+      border-radius: 3px;
+      cursor: pointer;
+      font-size: 16px;
+      line-height: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+      color: #333;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+    }
+    #vos-controls button:hover { background: #f0f0f0; }
+    #vos-controls .sep { height: 6px; }
+  `;
+  document.head.appendChild(style);
+
+  var container = document.createElement('div');
+  container.id = 'vos-controls';
+
+  function makeBtn(label, title, fn) {
+    var b = document.createElement('button');
+    b.innerHTML = label;
+    b.title = title;
+    b.addEventListener('click', fn);
+    return b;
+  }
+
+  container.appendChild(makeBtn('+', 'Zoom in', function() {
+    var s = network.getScale();
+    network.moveTo({ scale: s * 1.3, animation: { duration: 200 } });
+  }));
+  container.appendChild(makeBtn('−', 'Zoom out', function() {
+    var s = network.getScale();
+    network.moveTo({ scale: s / 1.3, animation: { duration: 200 } });
+  }));
+  var sep = document.createElement('div'); sep.className = 'sep';
+  container.appendChild(sep);
+  container.appendChild(makeBtn('⊡', 'Fit to screen', function() {
+    network.fit({ animation: { duration: 400, easingFunction: 'easeInOutQuad' } });
+  }));
+  container.appendChild(makeBtn('📷', 'Save screenshot', function() {
+    var canvas = document.querySelector('#mynetwork canvas');
+    if (!canvas) return;
+    var link = document.createElement('a');
+    link.download = 'network.png';
+    link.href = canvas.toDataURL('image/png');
+    link.click();
+  }));
+
+  var target = document.getElementById('mynetwork');
+  if (target) {
+    target.style.position = 'relative';
+    target.appendChild(container);
+  }
+})();
+</script>
+"""
+
 def _post_process_html(html: str, node_count: int = 0) -> str:
-    """
-    Set dark background and inject stabilization + interaction JavaScript.
-    """
-    html = html.replace(
-        "background-color: #ffffff;", f"background-color: {CANVAS_BG};"
-    ).replace(
-        "background-color:#ffffff;", f"background-color:{CANVAS_BG};"
-    )
+    for old in [
+        'background-color: #ffffff;',
+        'background-color:#ffffff;',
+        'background-color: white;',
+        'background: white;',
+        'background:#ffffff;',
+        'background: #ffffff;',
+    ]:
+        html = html.replace(old, f'background:{CANVAS_BG};')
+        html = html.replace(old.upper(), f'background:{CANVAS_BG};')
+
     html = re.sub(
-        r'(id="mynetwork"[^>]*style=")([^"]*)',
-        rf'\1background:{CANVAS_BG};',
+        r'(#mynetwork\s*\{[^}]*)',
+        rf'\1background:{CANVAS_BG} !important;',
         html,
+        flags=re.DOTALL,
     )
-    # Inject JS before </body>
     html = html.replace(
-        "</body>", _STABILIZE_JS + _HIGHLIGHT_JS + "</body>"
+        "</body>", _STABILIZE_JS + _HIGHLIGHT_JS + _CONTROLS_JS + "</body>"
     )
     return html
 
@@ -354,9 +439,9 @@ def _build_pyvis_network(
 
         node_color = {
             "background": fill_hex,
-            "border": border_hex,
-            "highlight": {"background": fill_hex, "border": "#FFFFFF"},
-            "hover": {"background": fill_hex, "border": "#FFFFFF"},
+            "border": fill_hex,
+            "highlight": {"background": fill_hex, "border": "#000000"},
+            "hover": {"background": fill_hex, "border": "#333333"},
         }
 
         net.add_node(
@@ -374,9 +459,10 @@ def _build_pyvis_network(
         src_community = graph.nodes[u].get("community_id", 0)
         src_color_hex = graph.nodes[u].get("color_hex", COMMUNITY_COLORS[0])
         edge_color = {
-            "color": hex_to_rgba(src_color_hex, 0.25),
-            "highlight": hex_to_rgba(src_color_hex, 0.90),
-            "hover": hex_to_rgba(src_color_hex, 0.70),
+            "color": hex_to_rgba(src_color_hex, 0.55),
+            "highlight": hex_to_rgba(src_color_hex, 1.0),
+            "hover": hex_to_rgba(src_color_hex, 0.85),
+            "inherit": False,
         }
         width = edge_widths.get((u, v), EDGE_WIDTH_MIN)
         edge_data = graph[u][v] if isinstance(graph, nx.Graph) else {}
@@ -447,7 +533,7 @@ def render_coauthorship_network(
     filtered = _filter_graph(graph, min_link, min_size, sel_comms, search)
 
     cache_key = (
-        f"_coauth_html_{key_prefix}_{min_link}_{min_size}_"
+        f"_coauth_html_{_VIZ_VERSION}_{key_prefix}_{min_link}_{min_size}_"
         f"{','.join(map(str, sel_comms))}_{search}_{freeze}"
     )
     if cache_key not in st.session_state or st.session_state[cache_key] is None:
@@ -577,7 +663,7 @@ def render_keyword_network(
         "### 02 — Keyword Co-occurrence Map\n"
         "<span style='color:#9CA3AF;font-size:13px;'>"
         "Node size = frequency &nbsp;|&nbsp; Color = thematic cluster &nbsp;|&nbsp; "
-        "Shape = keyword type &nbsp;|&nbsp; Edge = co-occurrence"
+        "Edge = co-occurrence"
         "</span>",
         unsafe_allow_html=True,
     )
@@ -606,7 +692,7 @@ def render_keyword_network(
     filtered = _filter_graph(graph, min_link, min_size, sel_comms, search)
 
     cache_key = (
-        f"_kw_html_{key_prefix}_{min_link}_{min_size}_"
+        f"_kw_html_{_VIZ_VERSION}_{key_prefix}_{min_link}_{min_size}_"
         f"{','.join(map(str, sel_comms))}_{search}_{freeze}"
     )
     if cache_key not in st.session_state:
@@ -653,14 +739,9 @@ def render_keyword_network(
             )
             return _wrap_tooltip(content)
 
-        def shape_fn(data):
-            ktype = data.get("source_type", "author_keyword")
-            return _KW_SHAPES.get(ktype, "dot")
-
         net = _build_pyvis_network(
             filtered, node_sizes, edge_widths, node_weights,
             label_fn, tooltip_fn, _default_edge_tooltip,
-            shape_fn=shape_fn,
         )
         if freeze:
             net.toggle_physics(False)
@@ -751,7 +832,7 @@ def render_topic_network(
     filtered = _filter_graph(graph, min_link, min_size, sel_comms, search)
 
     cache_key = (
-        f"_topic_html_{key_prefix}_{min_link}_{min_size}_"
+        f"_topic_html_{_VIZ_VERSION}_{key_prefix}_{min_link}_{min_size}_"
         f"{','.join(map(str, sel_comms))}_{search}_{freeze}_{year_filter}"
     )
     if cache_key not in st.session_state:

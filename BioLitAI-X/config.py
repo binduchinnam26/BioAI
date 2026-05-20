@@ -95,29 +95,35 @@ LOG_DIR = BASE_DIR / "logs"
 LOG_DIR.mkdir(exist_ok=True)
 
 # ── Visualization ─────────────────────────────────────────────────────────────
-# Node size scaling
-NODE_SIZE_MIN = 25
-NODE_SIZE_MAX = 90
+# Node size scaling (PyVis pixel units: 5–60 range)
+NODE_SIZE_MIN = 8
+NODE_SIZE_MAX = 60
 
-# Edge width scaling (thin VOSviewer-style lines)
-EDGE_WIDTH_MIN = 0.8
-EDGE_WIDTH_MAX = 4.0
+# Edge width scaling
+EDGE_WIDTH_MIN = 1.0
+EDGE_WIDTH_MAX = 8.0
 
 # Canvas background — white, matching VOSviewer
 CANVAS_BG = "#FFFFFF"
 
-# Community color palette — VOSviewer-faithful vivid hues (cycles if > 10)
+# Community color palette — VOSviewer exact saturated palette (cycles if > 16)
 COMMUNITY_COLORS = [
-    "#E8544A",  # 0 VOSviewer red
-    "#4CAF82",  # 1 VOSviewer green
-    "#C0CA33",  # 2 VOSviewer olive/yellow-green
-    "#7C5CBF",  # 3 VOSviewer purple
-    "#29B6C8",  # 4 VOSviewer cyan-teal
-    "#4285E8",  # 5 VOSviewer blue
-    "#F47B3A",  # 6 VOSviewer orange
-    "#AB47BC",  # 7 VOSviewer magenta-purple
-    "#66BB6A",  # 8 VOSviewer light green
-    "#26C6DA",  # 9 VOSviewer sky blue
+    "#E8424B",  # red
+    "#1E78B4",  # blue
+    "#33A02C",  # green
+    "#FF7F00",  # orange
+    "#9467BD",  # purple
+    "#8C564B",  # brown
+    "#E377C2",  # pink
+    "#17BECF",  # cyan
+    "#BCBD22",  # yellow-green
+    "#7FC97F",  # light green
+    "#F781BF",  # light pink
+    "#A65628",  # dark brown
+    "#984EA3",  # dark purple
+    "#4DAF4A",  # medium green
+    "#377EB8",  # medium blue
+    "#FF6347",  # tomato
 ]
 
 # Entity type colors for knowledge graph
