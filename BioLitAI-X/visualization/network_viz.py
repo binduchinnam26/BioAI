@@ -16,7 +16,12 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import networkx as nx
 
-_VIZ_VERSION = "v1"
+import hashlib as _hashlib
+try:
+    with open(__file__, "rb") as _f:
+        _VIZ_VERSION = "v" + _hashlib.md5(_f.read()).hexdigest()[:10]
+except Exception:
+    _VIZ_VERSION = "v1"
 
 from config import (
     CANVAS_BG,
