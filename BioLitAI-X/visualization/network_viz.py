@@ -451,7 +451,8 @@ def _build_pyvis_network(
             size=size,
             shape=shape,
             color=node_color,
-            borderWidth=2,
+            borderWidth=0,
+            borderWidthSelected=0,
             font=font,
         )
 
