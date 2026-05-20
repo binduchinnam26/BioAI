@@ -773,7 +773,7 @@ def render_keyword_network(
         net = _build_pyvis_network(
             filtered, node_sizes, edge_widths, node_weights,
             label_fn, tooltip_fn, _default_edge_tooltip,
-            edge_alpha=0.18, edge_roundness=0.20, network_type="keyword",
+            edge_alpha=0.18, edge_roundness=0.30, network_type="keyword",
         )
         if freeze:
             net.toggle_physics(False)
