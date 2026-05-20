@@ -47,6 +47,62 @@ from utils.helpers import (
 # ── Physics options ───────────────────────────────────────────────────────────
 
 def get_physics_options(node_count: int, network_type: str = "default") -> Dict:
+    if network_type == "keyword":
+        # VOSviewer-style layout: clusters spread wide across the canvas.
+        # Very low centralGravity lets inter-cluster repulsion dominate so
+        # communities push apart instead of collapsing to the centre.
+        return {
+            "physics": {
+                "enabled": True,
+                "barnesHut": {
+                    "gravitationalConstant": -14000,
+                    "centralGravity": 0.008,
+                    "springLength": 280,
+                    "springConstant": 0.018,
+                    "damping": 0.09,
+                    "avoidOverlap": 1.0,
+                },
+                "maxVelocity": 80,
+                "minVelocity": 0.25,
+                "stabilization": {
+                    "enabled": True,
+                    "iterations": 3000,
+                    "updateInterval": 25,
+                    "fit": True,
+                },
+                "timestep": 0.28,
+            },
+            "interaction": {
+                "hover": True,
+                "tooltipDelay": 150,
+                "hideEdgesOnDrag": True,
+                "hideEdgesOnZoom": False,
+                "multiselect": True,
+                "navigationButtons": False,
+                "keyboard": {"enabled": False},
+                "zoomView": True,
+            },
+            "nodes": {
+                "chosen": True,
+                "physics": True,
+                "shadow": False,
+                "font": {
+                    "size": 22,
+                    "color": "#000000",
+                    "strokeWidth": 2,
+                    "strokeColor": "#FFFFFF",
+                },
+            },
+            "edges": {
+                "chosen": True,
+                "physics": True,
+                "hoverWidth": 2.5,
+                "selectionWidth": 3.0,
+                "smooth": {"type": "continuous", "roundness": 0.3},
+            },
+        }
+
+    # ── Default (co-authorship, topic) ────────────────────────────────────────
     if node_count < 50:
         grav = -3000
         spring = 200
@@ -60,17 +116,12 @@ def get_physics_options(node_count: int, network_type: str = "default") -> Dict:
         spring = 150
         overlap = 0.9
 
-    # Keyword networks need very low central gravity so clusters spread apart
-    central_grav = 0.04 if network_type == "keyword" else 0.15
-    if network_type == "keyword":
-        spring = int(spring * 1.3)   # longer springs → more inter-cluster space
-
     return {
         "physics": {
             "enabled": True,
             "barnesHut": {
                 "gravitationalConstant": grav,
-                "centralGravity": central_grav,
+                "centralGravity": 0.15,
                 "springLength": spring,
                 "springConstant": 0.04,
                 "damping": 0.12,
@@ -101,7 +152,7 @@ def get_physics_options(node_count: int, network_type: str = "default") -> Dict:
             "physics": True,
             "shadow": False,
             "font": {
-                "size": 22 if network_type == "keyword" else 14,
+                "size": 14,
                 "color": "#000000",
                 "strokeWidth": 2,
                 "strokeColor": "#FFFFFF",
