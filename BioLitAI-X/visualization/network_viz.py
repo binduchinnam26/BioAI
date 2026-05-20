@@ -429,6 +429,7 @@ def _build_pyvis_network(
     directed: bool = False,
     shape_fn=None,
     edge_alpha: float = 0.55,
+    edge_roundness: float = 0.10,
     network_type: str = "default",
 ) -> Any:
     """
@@ -449,7 +450,7 @@ def _build_pyvis_network(
         width="100%",
         directed=directed,
         bgcolor=CANVAS_BG,
-        font_color="#D1D5DB",
+        font_color="#000000",
     )
     net.toggle_physics(True)
 
@@ -501,8 +502,8 @@ def _build_pyvis_network(
             color=edge_color,
             title=tooltip,
             arrows="" if not directed else "to",
-            smooth={"type": "continuous", "roundness": 0.1} if not directed else
-                {"type": "curvedCW", "roundness": 0.15},
+            smooth={"type": "continuous", "roundness": edge_roundness} if not directed else
+                {"type": "curvedCW", "roundness": edge_roundness},
         )
 
     physics_opts = get_physics_options(graph.number_of_nodes(), network_type)
@@ -772,7 +773,7 @@ def render_keyword_network(
         net = _build_pyvis_network(
             filtered, node_sizes, edge_widths, node_weights,
             label_fn, tooltip_fn, _default_edge_tooltip,
-            edge_alpha=0.18, network_type="keyword",
+            edge_alpha=0.18, edge_roundness=0.20, network_type="keyword",
         )
         if freeze:
             net.toggle_physics(False)
