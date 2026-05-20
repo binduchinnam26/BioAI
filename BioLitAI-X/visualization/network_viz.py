@@ -470,6 +470,7 @@ def _build_pyvis_network(
     w_list = list(node_weights.values())
     p50 = percentile(w_list, 50) if w_list else 1.0
     p75 = percentile(w_list, 75) if w_list else 1.0
+    p33 = percentile(w_list, 33) if w_list else 1.0
 
     net = Network(
         height="850px",
@@ -486,6 +487,11 @@ def _build_pyvis_network(
         size = node_sizes.get(node, NODE_SIZE_MIN)
         weight = node_weights.get(node, 1)
         label = label_fn(node, data)
+        # Keyword network: suppress labels for the bottom-33% nodes by weight.
+        # These peripheral low-frequency nodes are densely packed and cause the
+        # label-overlap problem. Their keyword name still shows in the hover tooltip.
+        if network_type == "keyword" and weight < p33:
+            label = ""
         tooltip = tooltip_fn(node, data, graph)
         shape = shape_fn(data) if shape_fn else "dot"
         font = _label_font(weight, p50, p75)
