@@ -60,10 +60,26 @@ def get_physics_options(node_count: int, network_type: str = "default") -> Dict:
         spring = 150
         overlap = 0.9
 
-    # Keyword networks need very low central gravity so clusters spread apart
-    central_grav = 0.04 if network_type == "keyword" else 0.15
+    # Keyword networks: aggressive spread so clusters fill the full canvas
     if network_type == "keyword":
-        spring = int(spring * 1.3)   # longer springs → more inter-cluster space
+        grav = -20000        # strong repulsion pushes all nodes apart
+        central_grav = 0.004 # near-zero — eliminates pull back to canvas centre
+        spring = 360         # very long springs keep connected clusters far apart
+        spring_const = 0.012 # soft springs let clusters drift to equilibrium
+        damping = 0.09
+        overlap = 1.0
+        iterations = 4000
+        timestep = 0.26
+        max_vel = 90
+        min_vel = 0.20
+    else:
+        central_grav = 0.15
+        spring_const = 0.04
+        damping = 0.12
+        iterations = 2000
+        timestep = 0.35
+        max_vel = 60
+        min_vel = 0.3
 
     return {
         "physics": {
@@ -72,19 +88,19 @@ def get_physics_options(node_count: int, network_type: str = "default") -> Dict:
                 "gravitationalConstant": grav,
                 "centralGravity": central_grav,
                 "springLength": spring,
-                "springConstant": 0.04,
-                "damping": 0.12,
+                "springConstant": spring_const,
+                "damping": damping,
                 "avoidOverlap": overlap,
             },
-            "maxVelocity": 60,
-            "minVelocity": 0.3,
+            "maxVelocity": max_vel,
+            "minVelocity": min_vel,
             "stabilization": {
                 "enabled": True,
-                "iterations": 2000,
+                "iterations": iterations,
                 "updateInterval": 25,
                 "fit": True,
             },
-            "timestep": 0.35,
+            "timestep": timestep,
         },
         "interaction": {
             "hover": True,
