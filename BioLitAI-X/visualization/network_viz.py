@@ -169,12 +169,18 @@ def _compute_edge_widths(
 
 # ── Label visibility ──────────────────────────────────────────────────────────
 
-def _label_font(weight: float, p50: float, p75: float) -> Dict:
-    if weight >= p75:
-        return {"size": 16, "color": "#000000", "face": "arial", "strokeWidth": 3, "strokeColor": "#FFFFFF"}
-    if weight >= p50:
-        return {"size": 13, "color": "#000000", "face": "arial", "strokeWidth": 2, "strokeColor": "#FFFFFF"}
-    return {"size": 11, "color": "#000000", "face": "arial", "strokeWidth": 1, "strokeColor": "#FFFFFF"}
+def _label_font(node_size: float, s_min: float, s_max: float) -> Dict:
+    """Font size scales linearly with the node's visual size (matches VOSviewer)."""
+    t = (node_size - s_min) / max(s_max - s_min, 1e-9)
+    font_size = max(9, int(9 + t * 22))   # 9 px (tiny) → 31 px (largest hub)
+    stroke = 1 if t < 0.30 else (2 if t < 0.65 else 3)
+    return {
+        "size": font_size,
+        "color": "#000000",
+        "face": "arial",
+        "strokeWidth": stroke,
+        "strokeColor": "#FFFFFF",
+    }
 
 
 # ── PyVis HTML post-processing ────────────────────────────────────────────────
@@ -442,9 +448,9 @@ def _build_pyvis_network(
     except ImportError as exc:
         raise ImportError("pyvis is not installed. Run: pip install pyvis") from exc
 
-    w_list = list(node_weights.values())
-    p50 = percentile(w_list, 50) if w_list else 1.0
-    p75 = percentile(w_list, 75) if w_list else 1.0
+    all_sizes = list(node_sizes.values())
+    s_min = min(all_sizes) if all_sizes else NODE_SIZE_MIN
+    s_max = max(all_sizes) if all_sizes else NODE_SIZE_MAX
 
     net = Network(
         height="850px",
@@ -463,7 +469,7 @@ def _build_pyvis_network(
         label = label_fn(node, data)
         tooltip = tooltip_fn(node, data, graph)
         shape = shape_fn(data) if shape_fn else "dot"
-        font = _label_font(weight, p50, p75)
+        font = _label_font(size, s_min, s_max)
 
         bg = hex_to_rgba(fill_hex, node_opacity) if node_opacity < 1.0 else fill_hex
         node_color = {
