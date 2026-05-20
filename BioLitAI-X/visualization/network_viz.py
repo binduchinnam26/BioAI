@@ -60,71 +60,28 @@ def get_physics_options(node_count: int, network_type: str = "default") -> Dict:
         spring = 150
         overlap = 0.9
 
-    # Keyword networks: ForceAtlas2 solver → VOSviewer-style community separation.
-    # Hub-attraction scales with node degree: high-frequency keywords pull their
-    # neighbours to a cluster centre. Communities repel into distinct spatial
-    # regions without a circular ring force (unlike barnesHut where inter-cluster
-    # springs at long distance always overpower repulsion).
+    # Keyword networks: zero centralGravity + balanced spring/repulsion.
+    # centralGravity=0 prevents circular ring. Stronger repulsion + longer softer
+    # springs spread clusters wide across canvas without intra-cluster overlap.
     if network_type == "keyword":
-        return {
-            "physics": {
-                "enabled": True,
-                "solver": "forceAtlas2Based",
-                "forceAtlas2Based": {
-                    "gravitationalConstant": -300,
-                    "centralGravity": 0.01,
-                    "springLength": 130,
-                    "springConstant": 0.08,
-                    "damping": 0.6,
-                    "avoidOverlap": 1.0,
-                },
-                "maxVelocity": 100,
-                "minVelocity": 0.1,
-                "stabilization": {
-                    "enabled": True,
-                    "iterations": 5000,
-                    "updateInterval": 25,
-                    "fit": True,
-                },
-                "timestep": 0.35,
-            },
-            "interaction": {
-                "hover": True,
-                "tooltipDelay": 150,
-                "hideEdgesOnDrag": True,
-                "hideEdgesOnZoom": False,
-                "multiselect": True,
-                "navigationButtons": False,
-                "keyboard": {"enabled": False},
-                "zoomView": True,
-            },
-            "nodes": {
-                "chosen": True,
-                "physics": True,
-                "shadow": False,
-                "font": {
-                    "size": 22,
-                    "color": "#000000",
-                    "strokeWidth": 2,
-                    "strokeColor": "#FFFFFF",
-                },
-            },
-            "edges": {
-                "chosen": True,
-                "physics": True,
-                "hoverWidth": 2.5,
-                "selectionWidth": 3.0,
-                "smooth": {"type": "continuous", "roundness": 0.1},
-            },
-        }
-
-    central_grav = 0.15
-    spring_const = 0.04
-    damping = 0.12
-    iterations = 2000
-    timestep = 0.35
-    max_vel = 60
-    min_vel = 0.3
+        grav = -55000        # strong repulsion separates clusters across canvas
+        central_grav = 0.0   # zero — topology drives placement, no ring force
+        spring = 220         # longer: gives nodes within each cluster room
+        spring_const = 0.05  # soft: cluster structure without squashing nodes
+        damping = 0.10
+        overlap = 1.0
+        iterations = 6000
+        timestep = 0.20
+        max_vel = 100
+        min_vel = 0.10
+    else:
+        central_grav = 0.15
+        spring_const = 0.04
+        damping = 0.12
+        iterations = 2000
+        timestep = 0.35
+        max_vel = 60
+        min_vel = 0.3
 
     return {
         "physics": {
