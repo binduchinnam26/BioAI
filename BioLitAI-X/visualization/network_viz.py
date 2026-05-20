@@ -123,6 +123,7 @@ def get_physics_options(node_count: int, network_type: str = "default") -> Dict:
                 "color": "#000000",
                 "strokeWidth": 2,
                 "strokeColor": "#FFFFFF",
+                "vadjust": -40 if network_type == "keyword" else 0,
             },
         },
         "edges": {
