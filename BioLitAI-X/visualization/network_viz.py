@@ -430,6 +430,8 @@ def _build_pyvis_network(
     shape_fn=None,
     edge_alpha: float = 0.55,
     edge_roundness: float = 0.10,
+    edge_smooth_type: str = "continuous",
+    node_opacity: float = 1.0,
     network_type: str = "default",
 ) -> Any:
     """
@@ -457,7 +459,6 @@ def _build_pyvis_network(
     for node in graph.nodes():
         data = graph.nodes[node]
         fill_hex = data.get("color_hex", COMMUNITY_COLORS[0])
-        border_hex = lighten_hex(fill_hex, 0.30)
         size = node_sizes.get(node, NODE_SIZE_MIN)
         weight = node_weights.get(node, 1)
         label = label_fn(node, data)
@@ -465,11 +466,12 @@ def _build_pyvis_network(
         shape = shape_fn(data) if shape_fn else "dot"
         font = _label_font(weight, w_min_all, w_max_all)
 
+        bg = hex_to_rgba(fill_hex, node_opacity) if node_opacity < 1.0 else fill_hex
         node_color = {
-            "background": fill_hex,
-            "border": fill_hex,
-            "highlight": {"background": fill_hex, "border": "#000000"},
-            "hover": {"background": fill_hex, "border": "#333333"},
+            "background": bg,
+            "border": bg,
+            "highlight": {"background": bg, "border": "#000000"},
+            "hover": {"background": bg, "border": "#333333"},
         }
 
         net.add_node(
@@ -502,7 +504,7 @@ def _build_pyvis_network(
             color=edge_color,
             title=tooltip,
             arrows="" if not directed else "to",
-            smooth={"type": "continuous", "roundness": edge_roundness} if not directed else
+            smooth={"type": edge_smooth_type, "roundness": edge_roundness} if not directed else
                 {"type": "curvedCW", "roundness": edge_roundness},
         )
 
@@ -773,7 +775,8 @@ def render_keyword_network(
         net = _build_pyvis_network(
             filtered, node_sizes, edge_widths, node_weights,
             label_fn, tooltip_fn, _default_edge_tooltip,
-            edge_alpha=0.18, edge_roundness=0.30, network_type="keyword",
+            edge_alpha=0.22, edge_smooth_type="dynamic",
+            node_opacity=0.78, network_type="keyword",
         )
         if freeze:
             net.toggle_physics(False)
