@@ -100,6 +100,12 @@ def get_physics_options(node_count: int, network_type: str = "default") -> Dict:
             "chosen": True,
             "physics": True,
             "shadow": False,
+            "font": {
+                "size": 22 if network_type == "keyword" else 14,
+                "color": "#000000",
+                "strokeWidth": 2,
+                "strokeColor": "#FFFFFF",
+            },
         },
         "edges": {
             "chosen": True,
@@ -775,7 +781,7 @@ def render_keyword_network(
             filtered, node_sizes, edge_widths, node_weights,
             label_fn, tooltip_fn, _default_edge_tooltip,
             edge_alpha=0.18, edge_roundness=0.30,
-            font_size_boost=10, network_type="keyword",
+            font_size_boost=14, network_type="keyword",
         )
         if freeze:
             net.toggle_physics(False)
