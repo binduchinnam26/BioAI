@@ -48,7 +48,6 @@ from visualization.network_viz import (
     _TOOLTIP_STYLE,
     _wrap_tooltip,
     _STABILIZE_JS,
-    _LABEL_OVERLAP_JS,
     _CONTROLS_JS,
     _post_process_html,
     _default_edge_tooltip,
@@ -177,7 +176,7 @@ def _post_process_kg_html(
     html = html.replace(
         "</body>",
         _PULSE_CSS + _STABILIZE_JS + _KG_HIGHLIGHT_JS + gap_js
-        + _CONTROLS_JS + _KG_FIT_JS + _LABEL_OVERLAP_JS + "</body>",
+        + _CONTROLS_JS + _KG_FIT_JS + "</body>",
     )
     return html
 
