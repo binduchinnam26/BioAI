@@ -391,12 +391,15 @@ def _build_kg_html(
     ew_min = min(edge_weights.values(), default=1)
     ew_max = max(edge_weights.values(), default=1)
 
-    # Compute explicit node sizes scaled from weights (matches keyword network:
-    # explicit size= parameter, not value=, so we control sizing precisely).
-    w_min = min(weights.values(), default=1)
-    w_max = max(weights.values(), default=1)
+    # Size by total degree (in+out connections) — mirrors VOSviewer where hub
+    # nodes (most connections) render largest.  Weight alone collapses to
+    # size_min when all nodes share the same weight (common in KGs), so degree
+    # is used as the primary sizing metric for natural visual hierarchy.
+    degrees = {n: graph.in_degree(n) + graph.out_degree(n) for n in graph.nodes()}
+    d_min = min(degrees.values(), default=1)
+    d_max = max(degrees.values(), default=1)
     node_sizes = {
-        n: scale_node_size(weights.get(n, 1), w_min, w_max, 40, 130)
+        n: scale_node_size(degrees.get(n, 1), d_min, d_max, 18, 80)
         for n in graph.nodes()
     }
 
@@ -416,9 +419,9 @@ def _build_kg_html(
         label = truncate(str(node), 20)
         tooltip = _kg_node_tooltip(node, data, graph)
 
-        # VOSviewer-style proportional font — identical formula to keyword network
-        node_size_val = node_sizes.get(node, 40)
-        font_px = max(10, min(30, int(node_size_val * 0.33)))
+        # VOSviewer-style proportional font: 11px for smallest, 22px for largest
+        node_size_val = node_sizes.get(node, 18)
+        font_px = max(11, min(22, int(node_size_val * 0.38)))
         stroke_w = 3 if font_px >= 20 else (2 if font_px >= 14 else 1)
         font = {
             "size": font_px,
@@ -536,7 +539,7 @@ def _build_kg_html(
             "chosen": True,
             "physics": True,
             "font": {
-                "size": 14,
+                "size": 13,
                 "color": "#000000",
                 "strokeWidth": 2,
                 "strokeColor": "#FFFFFF",
