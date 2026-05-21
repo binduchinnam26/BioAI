@@ -408,7 +408,7 @@ def _build_kg_html(
     d_min = min(degrees.values(), default=1)
     d_max = max(degrees.values(), default=1)
     node_sizes = {
-        n: scale_node_size(degrees.get(n, 1), d_min, d_max, 45, 130)
+        n: scale_node_size(degrees.get(n, 1), d_min, d_max, 10, 60)
         for n in graph.nodes()
     }
 
@@ -431,13 +431,13 @@ def _build_kg_html(
         # Font must be large in vis.js units so it stays above vis.js's
         # ~4px hide-threshold at typical zoom levels (0.2–0.4 after fit).
         # At zoom=0.25: font=40 → 10px screen (readable), font=14 → 3.5px (hidden).
-        node_size_val = node_sizes.get(node, 45)
-        font_px = max(40, min(60, int(node_size_val * 0.55)))
+        node_size_val = node_sizes.get(node, 10)
+        font_px = max(12, min(22, int(node_size_val * 0.45)))
         font = {
             "size": font_px,
             "color": "#000000",
             "face": "arial",
-            "strokeWidth": 3,
+            "strokeWidth": 2,
             "strokeColor": "#FFFFFF",
         }
 
@@ -500,28 +500,18 @@ def _build_kg_html(
             arrowStrikethrough=False,
         )
 
-    # KG physics: forceAtlas2Based solver — designed for biological/scientific
-    # networks (used by Gephi). Handles high-degree hub nodes correctly and
-    # produces the spread-out cluster layout shown in VOSviewer (image 2).
-    # barnesHut struggles here: dense connectivity means spring forces
-    # overwhelm any repulsion value, packing everything into a central mass.
-    n = graph.number_of_nodes()
-    if n < 50:
-        _grav, _spring_len = -200, 180
-    elif n > 200:
-        _grav, _spring_len = -800, 260
-    else:
-        _grav, _spring_len = -500, 220
-
+    # Compact VOSviewer-style physics: short spring length pulls nodes together
+    # into tight clusters; moderate repulsion keeps nodes separated within
+    # clusters. avoidOverlap:0 so node sizes don't push the graph apart.
     opts = {
         "physics": {
             "enabled": True,
             "solver": "forceAtlas2Based",
             "forceAtlas2Based": {
-                "gravitationalConstant": _grav,
-                "centralGravity": 0.008,   # tiny — keeps disconnected clusters from flying off
-                "springLength": _spring_len,
-                "springConstant": 0.06,
+                "gravitationalConstant": -120,
+                "centralGravity": 0.02,
+                "springLength": 100,
+                "springConstant": 0.10,
                 "damping": 0.4,
                 "avoidOverlap": 0,
             },
@@ -531,7 +521,7 @@ def _build_kg_html(
                 "enabled": True,
                 "iterations": 10000,
                 "updateInterval": 25,
-                "fit": False,   # keep viewport fixed during run; fit() after
+                "fit": False,
             },
             "timestep": 0.25,
         },
@@ -549,9 +539,9 @@ def _build_kg_html(
             "chosen": True,
             "physics": True,
             "font": {
-                "size": 40,
+                "size": 14,
                 "color": "#000000",
-                "strokeWidth": 3,
+                "strokeWidth": 2,
                 "strokeColor": "#FFFFFF",
             },
         },
@@ -578,11 +568,11 @@ def _build_kg_html(
     if (typeof network === 'undefined' || !network.body) return;
     var updates = Object.keys(_sz).map(function(id) {{
       var s = _sz[id];
-      var f = Math.max(40, Math.min(60, Math.round(s * 0.55)));
+      var f = Math.max(12, Math.min(22, Math.round(s * 0.45)));
       return {{
         id: id,
         size: s,
-        font: {{ size: f, color: '#000000', strokeWidth: 3, strokeColor: '#FFFFFF' }}
+        font: {{ size: f, color: '#000000', strokeWidth: 2, strokeColor: '#FFFFFF' }}
       }};
     }});
     network.body.data.nodes.update(updates);
