@@ -40,6 +40,7 @@ from visualization.network_viz import (
     _wrap_tooltip,
     _STABILIZE_JS,
     _LABEL_OVERLAP_JS,
+    _CONTROLS_JS,
     _post_process_html,
     _default_edge_tooltip,
     _label_font,
@@ -144,7 +145,8 @@ def _post_process_kg_html(
     gap_js = _GAP_HIGHLIGHT_JS.replace("__GAP_NODES_JSON__", gap_json)
     html = html.replace(
         "</body>",
-        _PULSE_CSS + _STABILIZE_JS + _KG_HIGHLIGHT_JS + gap_js + _LABEL_OVERLAP_JS + "</body>",
+        _PULSE_CSS + _STABILIZE_JS + _KG_HIGHLIGHT_JS + gap_js
+        + _CONTROLS_JS + _LABEL_OVERLAP_JS + "</body>",
     )
     return html
 
@@ -463,9 +465,69 @@ def _build_kg_html(
             arrowStrikethrough=False,
         )
 
-    # Keyword-identical physics: centralGravity=0, strong repulsion,
-    # 6000 iterations — gives the same cluster-spread layout as keyword network
-    opts = get_physics_options(graph.number_of_nodes(), network_type="keyword")
+    # KG physics: forceAtlas2Based solver — designed for biological/scientific
+    # networks (used by Gephi). Handles high-degree hub nodes correctly and
+    # produces the spread-out cluster layout shown in VOSviewer (image 2).
+    # barnesHut struggles here: dense connectivity means spring forces
+    # overwhelm any repulsion value, packing everything into a central mass.
+    n = graph.number_of_nodes()
+    if n < 50:
+        _grav, _spring_len = -200, 180
+    elif n > 200:
+        _grav, _spring_len = -800, 260
+    else:
+        _grav, _spring_len = -500, 220
+
+    opts = {
+        "physics": {
+            "enabled": True,
+            "solver": "forceAtlas2Based",
+            "forceAtlas2Based": {
+                "gravitationalConstant": _grav,
+                "centralGravity": 0.008,   # tiny — keeps disconnected clusters from flying off
+                "springLength": _spring_len,
+                "springConstant": 0.06,
+                "damping": 0.4,
+                "avoidOverlap": 1.0,
+            },
+            "maxVelocity": 100,
+            "minVelocity": 0.10,
+            "stabilization": {
+                "enabled": True,
+                "iterations": 10000,
+                "updateInterval": 25,
+                "fit": True,
+            },
+            "timestep": 0.25,
+        },
+        "interaction": {
+            "hover": True,
+            "tooltipDelay": 150,
+            "hideEdgesOnDrag": True,
+            "hideEdgesOnZoom": False,
+            "multiselect": True,
+            "navigationButtons": False,
+            "keyboard": {"enabled": False},
+            "zoomView": True,
+        },
+        "nodes": {
+            "chosen": True,
+            "physics": True,
+            "font": {
+                "size": 14,
+                "color": "#000000",
+                "strokeWidth": 2,
+                "strokeColor": "#FFFFFF",
+            },
+        },
+        "edges": {
+            "chosen": True,
+            "physics": True,
+            "hoverWidth": 2.5,
+            "selectionWidth": 3.0,
+            "smooth": {"type": "curvedCW", "roundness": 0.2},
+        },
+    }
     net.set_options(json.dumps(opts))
     html = net.generate_html(notebook=False)
     return _post_process_kg_html(html, gap_nodes)
