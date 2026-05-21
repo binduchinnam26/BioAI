@@ -431,6 +431,15 @@ _LABEL_OVERLAP_JS = """
   _netEl.style.position = 'relative';
   _netEl.appendChild(_ttEl);
 
+  // Track real mouse position (relative to _netEl) so tooltip always
+  // appears beside the cursor — never on top of the node itself.
+  var _mouseX = 0, _mouseY = 0;
+  _netEl.addEventListener('mousemove', function(e) {
+    var rect = _netEl.getBoundingClientRect();
+    _mouseX = e.clientX - rect.left;
+    _mouseY = e.clientY - rect.top;
+  });
+
   function _decodeHtml(s) {
     var ta = document.createElement('textarea');
     ta.innerHTML = s;
@@ -442,20 +451,18 @@ _LABEL_OVERLAP_JS = """
     if (!node || !node.title) return;
     _ttEl.innerHTML = _decodeHtml(node.title);
     _ttEl.style.display = 'block';
-    var pos      = network.getPosition(nodeId);
-    var nodeSize = node.size || 10;
-    // Convert node center and edges from canvas coords to DOM px
-    // (canvasToDOM handles zoom+pan correctly for coordinate points)
-    var dp      = network.canvasToDOM(pos);
-    var dpRight = network.canvasToDOM({ x: pos.x + nodeSize, y: pos.y });
-    var dpLeft  = network.canvasToDOM({ x: pos.x - nodeSize, y: pos.y });
-    var gap     = 10;
-    var ttW     = _ttEl.offsetWidth || 280;
-    var cW      = _netEl.offsetWidth;
-    var left = dpRight.x + gap;
-    if (left + ttW > cW) left = dpLeft.x - ttW - gap;
+    var gap  = 18;
+    var ttW  = _ttEl.offsetWidth  || 280;
+    var ttH  = _ttEl.offsetHeight || 150;
+    var cW   = _netEl.offsetWidth;
+    var cH   = _netEl.offsetHeight;
+    // Place tooltip to the right of cursor; flip left if it would overflow
+    var left = _mouseX + gap;
+    if (left + ttW > cW) left = _mouseX - ttW - gap;
+    var top  = _mouseY - 10;
+    if (top + ttH > cH) top = cH - ttH - 10;
     _ttEl.style.left = Math.max(0, left) + 'px';
-    _ttEl.style.top  = Math.max(0, dp.y - 10) + 'px';
+    _ttEl.style.top  = Math.max(0, top)  + 'px';
   }
 
   function _hideTooltip() { _ttEl.style.display = 'none'; }
