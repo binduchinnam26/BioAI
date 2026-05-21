@@ -407,24 +407,68 @@ _LABEL_OVERLAP_JS = """
     setTimeout(_run, 750);
   });
 
-  // Show hidden label while hovering
-  network.on('hoverNode', function(p) {
-    if (_hiddenSet.has(p.node) && _origLabels[p.node])
-      allNodes.update([{ id: p.node, label: _origLabels[p.node] }]);
-  });
-
-  // Re-hide on blur
-  network.on('blurNode', function(p) {
-    if (_hiddenSet.has(p.node))
-      allNodes.update([{ id: p.node, label: '' }]);
-  });
-
   // Re-evaluate on zoom (zoom-in reveals more labels, zoom-out hides more)
   var _zt = null;
   network.on('zoom', function() {
     clearTimeout(_zt);
     _zt = setTimeout(_run, 200);
   });
+
+  // ── Custom HTML tooltip ───────────────────────────────────────────────────
+  // PyVis HTML-encodes the title string so vis.js shows raw escaped HTML as
+  // plain text. Fix: hide vis.js built-in tooltip; create a custom div that
+  // decodes HTML entities then sets innerHTML so it renders properly.
+
+  // Suppress the vis.js built-in tooltip
+  var _ttCss = document.createElement('style');
+  _ttCss.textContent = '.vis-tooltip { display: none !important; }';
+  document.head.appendChild(_ttCss);
+
+  // Custom tooltip div inside the network container
+  var _ttEl  = document.createElement('div');
+  _ttEl.style.cssText = 'position:absolute;z-index:9999;pointer-events:none;display:none;max-width:280px;';
+  var _netEl = document.getElementById('mynetwork');
+  _netEl.style.position = 'relative';
+  _netEl.appendChild(_ttEl);
+
+  function _decodeHtml(s) {
+    var ta = document.createElement('textarea');
+    ta.innerHTML = s;
+    return ta.value;
+  }
+
+  function _showTooltip(nodeId) {
+    var node = allNodes.get(nodeId);
+    if (!node || !node.title) return;
+    _ttEl.innerHTML = _decodeHtml(node.title);
+    _ttEl.style.display = 'block';
+    var dp  = network.canvasToDOM(network.getPosition(nodeId));
+    var ttW = _ttEl.offsetWidth || 280;
+    var cW  = _netEl.offsetWidth;
+    var left = dp.x + 14;
+    if (left + ttW > cW) left = dp.x - ttW - 14;
+    _ttEl.style.left = Math.max(0, left) + 'px';
+    _ttEl.style.top  = Math.max(0, dp.y - 10) + 'px';
+  }
+
+  function _hideTooltip() { _ttEl.style.display = 'none'; }
+
+  // Show hidden label + custom tooltip on hover
+  network.on('hoverNode', function(p) {
+    if (_hiddenSet.has(p.node) && _origLabels[p.node])
+      allNodes.update([{ id: p.node, label: _origLabels[p.node] }]);
+    _showTooltip(p.node);
+  });
+
+  // Re-hide label + tooltip on blur
+  network.on('blurNode', function(p) {
+    if (_hiddenSet.has(p.node))
+      allNodes.update([{ id: p.node, label: '' }]);
+    _hideTooltip();
+  });
+
+  network.on('dragStart', _hideTooltip);
+
 })();
 </script>
 """
