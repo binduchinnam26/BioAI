@@ -581,7 +581,8 @@ def _build_pyvis_network(
         weight = node_weights.get(node, 1)
         label = label_fn(node, data)
         # Note: keyword network label overlap is handled by _LABEL_OVERLAP_JS
-        # injected into the HTML — no static hiding here.        tooltip = tooltip_fn(node, data, graph)
+        # injected into the HTML — no static hiding here.
+        tooltip = tooltip_fn(node, data, graph)
         shape = shape_fn(data) if shape_fn else "dot"
         if network_type == "keyword":
             # VOSviewer-style: font size scales with visual node size.
