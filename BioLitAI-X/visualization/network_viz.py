@@ -206,10 +206,19 @@ def _label_font(weight: float, p50: float, p75: float) -> Dict:
 
 _STABILIZE_JS = """
 <script>
-network.once('stabilizationIterationsDone', function() {
-  network.setOptions({ physics: { enabled: false } });
-  network.fit({ animation: { duration: 600, easingFunction: 'easeInOutQuad' } });
-});
+(function() {
+  network.once('stabilizationIterationsDone', function() {
+    network.setOptions({ physics: { enabled: false } });
+    [300, 800, 1500, 2500].forEach(function(ms) {
+      setTimeout(function() {
+        var el = document.getElementById('mynetwork');
+        if (el && el.offsetWidth > 50 && el.offsetHeight > 50) {
+          network.fit({ animation: { duration: 500, easingFunction: 'easeInOutQuad' } });
+        }
+      }, ms);
+    });
+  });
+})();
 </script>
 """
 
