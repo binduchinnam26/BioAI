@@ -399,7 +399,7 @@ def _build_kg_html(
     d_min = min(degrees.values(), default=1)
     d_max = max(degrees.values(), default=1)
     node_sizes = {
-        n: scale_node_size(degrees.get(n, 1), d_min, d_max, 18, 80)
+        n: scale_node_size(degrees.get(n, 1), d_min, d_max, 35, 120)
         for n in graph.nodes()
     }
 
@@ -420,8 +420,8 @@ def _build_kg_html(
         tooltip = _kg_node_tooltip(node, data, graph)
 
         # VOSviewer-style proportional font: 11px for smallest, 22px for largest
-        node_size_val = node_sizes.get(node, 18)
-        font_px = max(11, min(22, int(node_size_val * 0.38)))
+        node_size_val = node_sizes.get(node, 35)
+        font_px = max(13, min(26, int(node_size_val * 0.36)))
         stroke_w = 3 if font_px >= 20 else (2 if font_px >= 14 else 1)
         font = {
             "size": font_px,
