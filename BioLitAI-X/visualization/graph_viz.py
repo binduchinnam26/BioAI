@@ -39,6 +39,7 @@ from visualization.network_viz import (
     _TOOLTIP_STYLE,
     _wrap_tooltip,
     _STABILIZE_JS,
+    _LABEL_OVERLAP_JS,
     _post_process_html,
     _default_edge_tooltip,
     _label_font,
@@ -143,7 +144,7 @@ def _post_process_kg_html(
     gap_js = _GAP_HIGHLIGHT_JS.replace("__GAP_NODES_JSON__", gap_json)
     html = html.replace(
         "</body>",
-        _PULSE_CSS + _STABILIZE_JS + _KG_HIGHLIGHT_JS + gap_js + "</body>",
+        _PULSE_CSS + _STABILIZE_JS + _KG_HIGHLIGHT_JS + gap_js + _LABEL_OVERLAP_JS + "</body>",
     )
     return html
 
@@ -366,12 +367,21 @@ def _build_kg_html(
     ew_min = min(edge_weights.values(), default=1)
     ew_max = max(edge_weights.values(), default=1)
 
+    # Compute explicit node sizes scaled from weights (matches keyword network:
+    # explicit size= parameter, not value=, so we control sizing precisely).
+    w_min = min(weights.values(), default=1)
+    w_max = max(weights.values(), default=1)
+    node_sizes = {
+        n: scale_node_size(weights.get(n, 1), w_min, w_max, NODE_SIZE_MIN, NODE_SIZE_MAX)
+        for n in graph.nodes()
+    }
+
     net = Network(
         height="850px",
         width="100%",
         directed=True,
         bgcolor=CANVAS_BG,
-        font_color="#111827",
+        font_color="#000000",      # black labels — matches keyword network
     )
     net.toggle_physics(True)
 
@@ -379,18 +389,39 @@ def _build_kg_html(
         data = graph.nodes[node]
         etype = data.get("entity_type", "UNKNOWN")
         fill_hex = ENTITY_TYPE_COLORS.get(etype, "#9CA3AF")
-        w = weights.get(node, 1)
         label = truncate(str(node), 20)
         tooltip = _kg_node_tooltip(node, data, graph)
-        # value= (not size=) activates vis.js scaling.label so font size
-        # scales proportionally — same mechanism as VOSviewer.
+
+        # VOSviewer-style proportional font — identical formula to keyword network
+        node_size_val = node_sizes.get(node, NODE_SIZE_MIN)
+        font_px = max(10, min(30, int(node_size_val * 0.33)))
+        stroke_w = 3 if font_px >= 20 else (2 if font_px >= 14 else 1)
+        font = {
+            "size": font_px,
+            "color": "#000000",
+            "face": "arial",
+            "strokeWidth": stroke_w,
+            "strokeColor": "#FFFFFF",
+        }
+
+        # Full color dict — matches keyword network node color structure
+        node_color = {
+            "background": fill_hex,
+            "border": fill_hex,
+            "highlight": {"background": fill_hex, "border": "#000000"},
+            "hover":     {"background": fill_hex, "border": "#333333"},
+        }
+
         net.add_node(
             str(node),
             label=label,
             title=tooltip,
-            value=float(w),
+            size=node_size_val,        # explicit size, not value=
             shape="dot",
-            color=fill_hex,
+            color=node_color,
+            font=font,
+            borderWidth=0,
+            borderWidthSelected=0,
         )
 
     seen_edges = set()
@@ -404,8 +435,13 @@ def _build_kg_html(
         fill_hex = ENTITY_TYPE_COLORS.get(etype_u, "#9CA3AF")
         w = edge_weights.get((u, v), 1)
         width = scale_edge_width(w, ew_min, ew_max, EDGE_WIDTH_MIN, EDGE_WIDTH_MAX)
-        # Plain rgba string — avoids dict serialisation issues
-        edge_color = hex_to_rgba(fill_hex, 0.45)
+        # Full color dict with hover/highlight states — matches keyword network
+        edge_color = {
+            "color":     hex_to_rgba(fill_hex, 0.45),
+            "highlight": hex_to_rgba(fill_hex, 0.90),
+            "hover":     hex_to_rgba(fill_hex, 0.70),
+            "inherit":   False,
+        }
         rel_type = data.get("relationship_type", "")
         pmids = data.get("evidence_pmids", [])
         pmid_str = ", ".join(str(p) for p in pmids[:3])
@@ -427,7 +463,9 @@ def _build_kg_html(
             arrowStrikethrough=False,
         )
 
-    opts = get_physics_options(graph.number_of_nodes())
+    # Keyword-identical physics: centralGravity=0, strong repulsion,
+    # 6000 iterations — gives the same cluster-spread layout as keyword network
+    opts = get_physics_options(graph.number_of_nodes(), network_type="keyword")
     net.set_options(json.dumps(opts))
     html = net.generate_html(notebook=False)
     return _post_process_kg_html(html, gap_nodes)
