@@ -409,7 +409,7 @@ def _build_kg_html(
     d_min = min(degrees.values(), default=1)
     d_max = max(degrees.values(), default=1)
     node_sizes = {
-        n: scale_node_size(degrees.get(n, 1), d_min, d_max, 25, 90)
+        n: scale_node_size(degrees.get(n, 1), d_min, d_max, 45, 130)
         for n in graph.nodes()
     }
 
@@ -429,15 +429,16 @@ def _build_kg_html(
         label = truncate(str(node), 20)
         tooltip = _kg_node_tooltip(node, data, graph)
 
-        # VOSviewer-style proportional font: 11px for smallest, 22px for largest
-        node_size_val = node_sizes.get(node, 25)
-        font_px = max(13, min(26, int(node_size_val * 0.36)))
-        stroke_w = 3 if font_px >= 20 else (2 if font_px >= 14 else 1)
+        # Font must be large in vis.js units so it stays above vis.js's
+        # ~4px hide-threshold at typical zoom levels (0.2–0.4 after fit).
+        # At zoom=0.25: font=40 → 10px screen (readable), font=14 → 3.5px (hidden).
+        node_size_val = node_sizes.get(node, 45)
+        font_px = max(40, min(60, int(node_size_val * 0.55)))
         font = {
             "size": font_px,
             "color": "#000000",
             "face": "arial",
-            "strokeWidth": stroke_w,
+            "strokeWidth": 3,
             "strokeColor": "#FFFFFF",
         }
 
@@ -549,9 +550,9 @@ def _build_kg_html(
             "chosen": True,
             "physics": True,
             "font": {
-                "size": 13,
+                "size": 40,
                 "color": "#000000",
-                "strokeWidth": 2,
+                "strokeWidth": 3,
                 "strokeColor": "#FFFFFF",
             },
         },
@@ -567,9 +568,9 @@ def _build_kg_html(
     html = net.generate_html(notebook=False)
     html = _post_process_kg_html(html, gap_nodes)
 
-    # Directly override node sizes via vis.js DataSet API.
-    # This is guaranteed to apply regardless of how PyVis serialises the
-    # size= parameter or whether vis.js scaling mode is active.
+    # Directly override node sizes AND font sizes via vis.js DataSet API.
+    # Font must be large (40-60 vis.js units) so it exceeds vis.js's ~4px
+    # hide-threshold at typical post-fit zoom levels of 0.2–0.4.
     _sizes_json = json.dumps({str(n): round(node_sizes[n]) for n in graph.nodes()})
     _node_size_js = f"""<script>
 (function() {{
@@ -577,11 +578,16 @@ def _build_kg_html(
   function _applyNodeSizes() {{
     if (typeof network === 'undefined' || !network.body) return;
     var updates = Object.keys(_sz).map(function(id) {{
-      return {{ id: id, size: _sz[id] }};
+      var s = _sz[id];
+      var f = Math.max(40, Math.min(60, Math.round(s * 0.55)));
+      return {{
+        id: id,
+        size: s,
+        font: {{ size: f, color: '#000000', strokeWidth: 3, strokeColor: '#FFFFFF' }}
+      }};
     }});
     network.body.data.nodes.update(updates);
   }}
-  // Apply at multiple points to ensure it lands after network init
   _applyNodeSizes();
   setTimeout(_applyNodeSizes, 100);
   setTimeout(_applyNodeSizes, 500);
