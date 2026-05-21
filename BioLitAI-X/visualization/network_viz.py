@@ -442,13 +442,18 @@ _LABEL_OVERLAP_JS = """
     if (!node || !node.title) return;
     _ttEl.innerHTML = _decodeHtml(node.title);
     _ttEl.style.display = 'block';
-    var dp       = network.canvasToDOM(network.getPosition(nodeId));
-    var scale    = network.getScale();
-    var radius   = (node.size || 10) * scale + 8;  // node edge in DOM px + gap
-    var ttW      = _ttEl.offsetWidth || 280;
-    var cW       = _netEl.offsetWidth;
-    var left = dp.x + radius;
-    if (left + ttW > cW) left = dp.x - radius - ttW;
+    var pos      = network.getPosition(nodeId);
+    var nodeSize = node.size || 10;
+    // Convert node center and edges from canvas coords to DOM px
+    // (canvasToDOM handles zoom+pan correctly for coordinate points)
+    var dp      = network.canvasToDOM(pos);
+    var dpRight = network.canvasToDOM({ x: pos.x + nodeSize, y: pos.y });
+    var dpLeft  = network.canvasToDOM({ x: pos.x - nodeSize, y: pos.y });
+    var gap     = 10;
+    var ttW     = _ttEl.offsetWidth || 280;
+    var cW      = _netEl.offsetWidth;
+    var left = dpRight.x + gap;
+    if (left + ttW > cW) left = dpLeft.x - ttW - gap;
     _ttEl.style.left = Math.max(0, left) + 'px';
     _ttEl.style.top  = Math.max(0, dp.y - 10) + 'px';
   }
