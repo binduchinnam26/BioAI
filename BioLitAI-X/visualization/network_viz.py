@@ -337,7 +337,100 @@ _CONTROLS_JS = """
 </script>
 """
 
-def _post_process_html(html: str, node_count: int = 0) -> str:
+_LABEL_OVERLAP_JS = """
+<script>
+(function() {
+  // VOSviewer-style label overlap avoidance.
+  // Greedy algorithm: process nodes largest→smallest; keep the label if it
+  // doesn't overlap any already-accepted label, otherwise hide it.
+  // Hidden labels reappear on hover and re-evaluation runs on every zoom.
+  var _origLabels  = {};
+  var _hiddenSet   = new Set();
+  var CHAR_W       = 0.55;   // approximate char-width / font-size ratio (Arial)
+  var PAD          = 4;      // extra px padding around each label bbox
+
+  function _bbox(nodeId) {
+    var node = allNodes.get(nodeId);
+    if (!node) return null;
+    var lbl = _origLabels[nodeId];
+    if (!lbl) return null;
+    var fs    = (node.font && node.font.size) ? node.font.size : 14;
+    var scale = network.getScale();
+    var dp    = network.canvasToDOM(network.getPosition(nodeId));
+    var w     = lbl.length * fs * CHAR_W * scale;
+    var h     = fs * 1.3 * scale;
+    return { l: dp.x - w/2 - PAD, r: dp.x + w/2 + PAD,
+             t: dp.y - h/2 - PAD, b: dp.y + h/2 + PAD };
+  }
+
+  function _hit(a, b) {
+    return !(a.r < b.l || a.l > b.r || a.b < b.t || a.t > b.b);
+  }
+
+  function _run() {
+    // Snapshot original labels once
+    allNodes.getIds().forEach(function(id) {
+      if (!(id in _origLabels)) _origLabels[id] = allNodes.get(id).label || '';
+    });
+
+    // Sort largest node first (most important)
+    var sorted = allNodes.getIds().map(function(id) {
+      return { id: id, sz: allNodes.get(id).size || 10 };
+    }).sort(function(a, b) { return b.sz - a.sz; });
+
+    var kept    = [];
+    var hidden  = new Set();
+    var updates = [];
+
+    sorted.forEach(function(item) {
+      var id  = item.id;
+      var lbl = _origLabels[id];
+      if (!lbl) return;
+      var box = _bbox(id);
+      if (!box) return;
+
+      if (kept.some(function(k) { return _hit(box, k); })) {
+        hidden.add(id);
+        if (allNodes.get(id).label !== '') updates.push({ id: id, label: '' });
+      } else {
+        kept.push(box);
+        if (allNodes.get(id).label !== lbl) updates.push({ id: id, label: lbl });
+      }
+    });
+
+    _hiddenSet = hidden;
+    if (updates.length) allNodes.update(updates);
+  }
+
+  // Run after stabilisation + 600ms fit animation
+  network.once('stabilizationIterationsDone', function() {
+    setTimeout(_run, 750);
+  });
+
+  // Show hidden label while hovering
+  network.on('hoverNode', function(p) {
+    if (_hiddenSet.has(p.node) && _origLabels[p.node])
+      allNodes.update([{ id: p.node, label: _origLabels[p.node] }]);
+  });
+
+  // Re-hide on blur
+  network.on('blurNode', function(p) {
+    if (_hiddenSet.has(p.node))
+      allNodes.update([{ id: p.node, label: '' }]);
+  });
+
+  // Re-evaluate on zoom (zoom-in reveals more labels, zoom-out hides more)
+  var _zt = null;
+  network.on('zoom', function() {
+    clearTimeout(_zt);
+    _zt = setTimeout(_run, 200);
+  });
+})();
+</script>
+"""
+
+
+def _post_process_html(html: str, node_count: int = 0, network_type: str = "default") -> str:
     for old in [
         'background-color: #ffffff;',
         'background-color:#ffffff;',
@@ -355,16 +448,17 @@ def _post_process_html(html: str, node_count: int = 0) -> str:
         html,
         flags=re.DOTALL,
     )
+    overlap_js = _LABEL_OVERLAP_JS if network_type == "keyword" else ""
     html = html.replace(
-        "</body>", _STABILIZE_JS + _HIGHLIGHT_JS + _CONTROLS_JS + "</body>"
+        "</body>", _STABILIZE_JS + _HIGHLIGHT_JS + _CONTROLS_JS + overlap_js + "</body>"
     )
     return html
 
 
-def _pyvis_to_html(net, node_count: int = 0) -> str:
+def _pyvis_to_html(net, node_count: int = 0, network_type: str = "default") -> str:
     """Generate PyVis HTML string (no disk write)."""
     html = net.generate_html(notebook=False)
-    return _post_process_html(html, node_count)
+    return _post_process_html(html, node_count, network_type)
 
 
 # ── Controls panel ────────────────────────────────────────────────────────────
@@ -486,12 +580,8 @@ def _build_pyvis_network(
         size = node_sizes.get(node, NODE_SIZE_MIN)
         weight = node_weights.get(node, 1)
         label = label_fn(node, data)
-        # Keyword network: suppress labels for the bottom-50% nodes by weight.
-        # These peripheral low-frequency nodes are densely packed and cause the
-        # label-overlap problem. Their keyword name still shows in the hover tooltip.
-        if network_type == "keyword" and weight < p50:
-            label = ""
-        tooltip = tooltip_fn(node, data, graph)
+        # Note: keyword network label overlap is handled by _LABEL_OVERLAP_JS
+        # injected into the HTML — no static hiding here.        tooltip = tooltip_fn(node, data, graph)
         shape = shape_fn(data) if shape_fn else "dot"
         if network_type == "keyword":
             # VOSviewer-style: font size scales with visual node size.
@@ -826,7 +916,7 @@ def render_keyword_network(
         )
         if freeze:
             net.toggle_physics(False)
-        html = _pyvis_to_html(net, filtered.number_of_nodes())
+        html = _pyvis_to_html(net, filtered.number_of_nodes(), network_type="keyword")
         st.session_state[cache_key] = html
     else:
         html = st.session_state[cache_key]
