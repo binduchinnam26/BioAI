@@ -404,7 +404,15 @@ _LABEL_OVERLAP_JS = """
 
   // Run after stabilisation + 600ms fit animation
   network.once('stabilizationIterationsDone', function() {
-    setTimeout(_run, 750);
+    // Keyword network: re-fit after _STABILIZE_JS's 600ms animation finishes.
+    // Streamlit's iframe may not have its final dimensions on the first fit(),
+    // so this backup call (700ms later, when the container is fully sized)
+    // ensures the network fills the canvas properly.
+    setTimeout(function() {
+      network.fit({ animation: { duration: 400, easingFunction: 'easeInOutQuad' } });
+    }, 700);
+    // Label overlap runs after the backup fit settles (700 + 400 + 50 buffer)
+    setTimeout(_run, 1200);
   });
 
   // Re-evaluate on zoom (zoom-in reveals more labels, zoom-out hides more)
