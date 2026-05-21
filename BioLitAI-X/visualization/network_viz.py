@@ -442,11 +442,13 @@ _LABEL_OVERLAP_JS = """
     if (!node || !node.title) return;
     _ttEl.innerHTML = _decodeHtml(node.title);
     _ttEl.style.display = 'block';
-    var dp  = network.canvasToDOM(network.getPosition(nodeId));
-    var ttW = _ttEl.offsetWidth || 280;
-    var cW  = _netEl.offsetWidth;
-    var left = dp.x + 14;
-    if (left + ttW > cW) left = dp.x - ttW - 14;
+    var dp       = network.canvasToDOM(network.getPosition(nodeId));
+    var scale    = network.getScale();
+    var radius   = (node.size || 10) * scale + 8;  // node edge in DOM px + gap
+    var ttW      = _ttEl.offsetWidth || 280;
+    var cW       = _netEl.offsetWidth;
+    var left = dp.x + radius;
+    if (left + ttW > cW) left = dp.x - radius - ttW;
     _ttEl.style.left = Math.max(0, left) + 'px';
     _ttEl.style.top  = Math.max(0, dp.y - 10) + 'px';
   }
