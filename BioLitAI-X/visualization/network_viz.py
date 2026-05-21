@@ -493,9 +493,24 @@ def _build_pyvis_network(
             label = ""
         tooltip = tooltip_fn(node, data, graph)
         shape = shape_fn(data) if shape_fn else "dot"
-        font = _label_font(weight, p50, p75)
-        if font_size_boost:
-            font = {**font, "size": font["size"] + font_size_boost}
+        if network_type == "keyword":
+            # VOSviewer-style: font size scales with visual node size.
+            # Hub nodes keep large prominent labels; smaller nodes get
+            # proportionally smaller fonts that don't bleed onto neighbours.
+            node_size_val = node_sizes.get(node, NODE_SIZE_MIN)
+            font_px = max(10, min(30, int(node_size_val * 0.33)))
+            stroke_w = 3 if font_px >= 20 else (2 if font_px >= 14 else 1)
+            font = {
+                "size": font_px,
+                "color": "#000000",
+                "face": "arial",
+                "strokeWidth": stroke_w,
+                "strokeColor": "#FFFFFF",
+            }
+        else:
+            font = _label_font(weight, p50, p75)
+            if font_size_boost:
+                font = {**font, "size": font["size"] + font_size_boost}
 
         bg = hex_to_rgba(fill_hex, node_opacity) if node_opacity < 1.0 else fill_hex
         node_color = {
