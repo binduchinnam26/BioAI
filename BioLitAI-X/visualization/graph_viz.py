@@ -4,11 +4,20 @@ coloring, curved arrows, gap highlighting, left control panel, right detail
 panel, and relationship evidence table.
 """
 
+import hashlib as _hashlib
 import json
 import re
 from typing import Any, Dict, List, Optional
 
 import networkx as nx
+
+# Own-file hash so cache busts whenever graph_viz.py changes (independent of
+# network_viz._VIZ_VERSION which only tracks network_viz.py changes).
+try:
+    with open(__file__, "rb") as _f:
+        _KG_VERSION = "kg" + _hashlib.md5(_f.read()).hexdigest()[:10]
+except Exception:
+    _KG_VERSION = "kg1"
 
 from config import (
     CANVAS_BG,
@@ -347,7 +356,8 @@ def render_knowledge_graph(
             gap_node_list = [n for n in gap_node_list if n and filtered.has_node(n)]
 
         cache_key = (
-            f"_kg_html_{_VIZ_VERSION}_{key_prefix}_{','.join(sorted(selected_etypes))}_"
+            f"_kg_html_{_VIZ_VERSION}_{_KG_VERSION}_{key_prefix}_"
+            f"{','.join(sorted(selected_etypes))}_"
             f"{','.join(sorted(selected_rels))}_{entity_search}_"
             f"{evidence_threshold}_{gap_highlight}"
         )
