@@ -396,7 +396,7 @@ def _build_kg_html(
     w_min = min(weights.values(), default=1)
     w_max = max(weights.values(), default=1)
     node_sizes = {
-        n: scale_node_size(weights.get(n, 1), w_min, w_max, 20, 100)
+        n: scale_node_size(weights.get(n, 1), w_min, w_max, 40, 130)
         for n in graph.nodes()
     }
 
@@ -417,7 +417,7 @@ def _build_kg_html(
         tooltip = _kg_node_tooltip(node, data, graph)
 
         # VOSviewer-style proportional font — identical formula to keyword network
-        node_size_val = node_sizes.get(node, 20)
+        node_size_val = node_sizes.get(node, 40)
         font_px = max(10, min(30, int(node_size_val * 0.33)))
         stroke_w = 3 if font_px >= 20 else (2 if font_px >= 14 else 1)
         font = {
