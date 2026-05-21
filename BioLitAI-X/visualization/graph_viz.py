@@ -465,37 +465,40 @@ def _build_kg_html(
             arrowStrikethrough=False,
         )
 
-    # KG-specific physics: VOSviewer-style spread-out layout.
-    # The KG is a dense directed graph — it needs stronger repulsion and
-    # longer springs than the keyword network to prevent central packing.
+    # KG physics: forceAtlas2Based solver — designed for biological/scientific
+    # networks (used by Gephi). Handles high-degree hub nodes correctly and
+    # produces the spread-out cluster layout shown in VOSviewer (image 2).
+    # barnesHut struggles here: dense connectivity means spring forces
+    # overwhelm any repulsion value, packing everything into a central mass.
     n = graph.number_of_nodes()
     if n < 50:
-        _grav, _spring = -80000, 240
+        _grav, _spring_len = -200, 180
     elif n > 200:
-        _grav, _spring = -180000, 320
+        _grav, _spring_len = -800, 260
     else:
-        _grav, _spring = -120000, 280
+        _grav, _spring_len = -500, 220
 
     opts = {
         "physics": {
             "enabled": True,
-            "barnesHut": {
+            "solver": "forceAtlas2Based",
+            "forceAtlas2Based": {
                 "gravitationalConstant": _grav,
-                "centralGravity": 0.0,   # no ring force — topology drives layout
-                "springLength": _spring,
-                "springConstant": 0.04,
-                "damping": 0.12,
+                "centralGravity": 0.008,   # tiny — keeps disconnected clusters from flying off
+                "springLength": _spring_len,
+                "springConstant": 0.06,
+                "damping": 0.4,
                 "avoidOverlap": 1.0,
             },
             "maxVelocity": 100,
             "minVelocity": 0.10,
             "stabilization": {
                 "enabled": True,
-                "iterations": 8000,
+                "iterations": 10000,
                 "updateInterval": 25,
                 "fit": True,
             },
-            "timestep": 0.22,
+            "timestep": 0.25,
         },
         "interaction": {
             "hover": True,
