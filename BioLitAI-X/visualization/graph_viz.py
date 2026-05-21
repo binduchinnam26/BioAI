@@ -565,7 +565,31 @@ def _build_kg_html(
     }
     net.set_options(json.dumps(opts))
     html = net.generate_html(notebook=False)
-    return _post_process_kg_html(html, gap_nodes)
+    html = _post_process_kg_html(html, gap_nodes)
+
+    # Directly override node sizes via vis.js DataSet API.
+    # This is guaranteed to apply regardless of how PyVis serialises the
+    # size= parameter or whether vis.js scaling mode is active.
+    _sizes_json = json.dumps({str(n): round(node_sizes[n]) for n in graph.nodes()})
+    _node_size_js = f"""<script>
+(function() {{
+  var _sz = {_sizes_json};
+  function _applyNodeSizes() {{
+    if (typeof network === 'undefined' || !network.body) return;
+    var updates = Object.keys(_sz).map(function(id) {{
+      return {{ id: id, size: _sz[id] }};
+    }});
+    network.body.data.nodes.update(updates);
+  }}
+  // Apply at multiple points to ensure it lands after network init
+  _applyNodeSizes();
+  setTimeout(_applyNodeSizes, 100);
+  setTimeout(_applyNodeSizes, 500);
+  network.once('stabilizationIterationsDone', _applyNodeSizes);
+}})();
+</script>"""
+    html = html.replace("</body>", _node_size_js + "\n</body>")
+    return html
 
 
 def _kg_node_tooltip(node: str, data: Dict, graph: nx.MultiDiGraph) -> str:
