@@ -408,7 +408,7 @@ def _build_kg_html(
     d_min = min(degrees.values(), default=1)
     d_max = max(degrees.values(), default=1)
     node_sizes = {
-        n: scale_node_size(degrees.get(n, 1), d_min, d_max, 10, 60)
+        n: scale_node_size(degrees.get(n, 1), d_min, d_max, 5, 30)
         for n in graph.nodes()
     }
 
@@ -431,8 +431,8 @@ def _build_kg_html(
         # Font must be large in vis.js units so it stays above vis.js's
         # ~4px hide-threshold at typical zoom levels (0.2–0.4 after fit).
         # At zoom=0.25: font=40 → 10px screen (readable), font=14 → 3.5px (hidden).
-        node_size_val = node_sizes.get(node, 10)
-        font_px = max(12, min(22, int(node_size_val * 0.45)))
+        node_size_val = node_sizes.get(node, 5)
+        font_px = max(14, min(20, int(node_size_val * 0.65)))
         font = {
             "size": font_px,
             "color": "#000000",
@@ -500,18 +500,18 @@ def _build_kg_html(
             arrowStrikethrough=False,
         )
 
-    # Compact VOSviewer-style physics: short spring length pulls nodes together
-    # into tight clusters; moderate repulsion keeps nodes separated within
-    # clusters. avoidOverlap:0 so node sizes don't push the graph apart.
+    # Compact VOSviewer-style physics: very short spring length (60) pulls
+    # connected nodes tightly together; mild repulsion (-80) keeps nodes
+    # separated within clusters without spreading the graph wide.
     opts = {
         "physics": {
             "enabled": True,
             "solver": "forceAtlas2Based",
             "forceAtlas2Based": {
-                "gravitationalConstant": -120,
+                "gravitationalConstant": -80,
                 "centralGravity": 0.02,
-                "springLength": 100,
-                "springConstant": 0.10,
+                "springLength": 60,
+                "springConstant": 0.15,
                 "damping": 0.4,
                 "avoidOverlap": 0,
             },
@@ -544,6 +544,8 @@ def _build_kg_html(
                 "strokeWidth": 2,
                 "strokeColor": "#FFFFFF",
             },
+            "borderWidth": 0,
+            "borderWidthSelected": 0,
         },
         "edges": {
             "chosen": True,
@@ -568,11 +570,13 @@ def _build_kg_html(
     if (typeof network === 'undefined' || !network.body) return;
     var updates = Object.keys(_sz).map(function(id) {{
       var s = _sz[id];
-      var f = Math.max(12, Math.min(22, Math.round(s * 0.45)));
+      var f = Math.max(14, Math.min(20, Math.round(s * 0.65)));
       return {{
         id: id,
         size: s,
-        font: {{ size: f, color: '#000000', strokeWidth: 2, strokeColor: '#FFFFFF' }}
+        borderWidth: 0,
+        borderWidthSelected: 0,
+        font: {{ size: f, color: '#000000', face: 'arial', strokeWidth: 2, strokeColor: '#FFFFFF' }}
       }};
     }});
     network.body.data.nodes.update(updates);
