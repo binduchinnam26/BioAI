@@ -126,6 +126,28 @@ network.on('doubleClick', function(params) {
 """
 
 
+# Robust post-stabilisation fit for the KG.
+# Retries at three increasing delays so at least one call lands after
+# Streamlit's iframe has its final pixel dimensions (the container's
+# offsetWidth/offsetHeight must be non-zero for fit() to work correctly).
+_KG_FIT_JS = """
+<script>
+(function() {
+  network.once('stabilizationIterationsDone', function() {
+    [400, 1000, 2000].forEach(function(ms) {
+      setTimeout(function() {
+        var el = document.getElementById('mynetwork');
+        if (el && el.offsetWidth > 50 && el.offsetHeight > 50) {
+          network.fit({ animation: { duration: 500, easingFunction: 'easeInOutQuad' } });
+        }
+      }, ms);
+    });
+  });
+})();
+</script>
+"""
+
+
 def _post_process_kg_html(
     html: str, gap_nodes: Optional[List] = None
 ) -> str:
@@ -146,7 +168,7 @@ def _post_process_kg_html(
     html = html.replace(
         "</body>",
         _PULSE_CSS + _STABILIZE_JS + _KG_HIGHLIGHT_JS + gap_js
-        + _CONTROLS_JS + _LABEL_OVERLAP_JS + "</body>",
+        + _CONTROLS_JS + _KG_FIT_JS + _LABEL_OVERLAP_JS + "</body>",
     )
     return html
 
@@ -496,7 +518,7 @@ def _build_kg_html(
                 "enabled": True,
                 "iterations": 10000,
                 "updateInterval": 25,
-                "fit": True,
+                "fit": False,   # keep viewport fixed during run; fit() after
             },
             "timestep": 0.25,
         },
