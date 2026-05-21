@@ -408,7 +408,7 @@ def _build_kg_html(
     d_min = min(degrees.values(), default=1)
     d_max = max(degrees.values(), default=1)
     node_sizes = {
-        n: scale_node_size(degrees.get(n, 1), d_min, d_max, 5, 30)
+        n: scale_node_size(degrees.get(n, 1), d_min, d_max, 8, 50)
         for n in graph.nodes()
     }
 
@@ -431,8 +431,9 @@ def _build_kg_html(
         # Font must be large in vis.js units so it stays above vis.js's
         # ~4px hide-threshold at typical zoom levels (0.2–0.4 after fit).
         # At zoom=0.25: font=40 → 10px screen (readable), font=14 → 3.5px (hidden).
-        node_size_val = node_sizes.get(node, 5)
-        font_px = max(14, min(20, int(node_size_val * 0.65)))
+        node_size_val = node_sizes.get(node, 8)
+        # Font proportional to node size; min 10 guarantees readability
+        font_px = max(10, min(30, int(node_size_val * 0.7)))
         font = {
             "size": font_px,
             "color": "#000000",
@@ -500,18 +501,16 @@ def _build_kg_html(
             arrowStrikethrough=False,
         )
 
-    # Compact VOSviewer-style physics: very short spring length (60) pulls
-    # connected nodes tightly together; mild repulsion (-80) keeps nodes
-    # separated within clusters without spreading the graph wide.
     opts = {
         "physics": {
             "enabled": True,
             "solver": "forceAtlas2Based",
             "forceAtlas2Based": {
-                "gravitationalConstant": -80,
-                "centralGravity": 0.02,
-                "springLength": 60,
-                "springConstant": 0.15,
+                # Weak repulsion + short springs = tight VOSviewer-style cluster
+                "gravitationalConstant": -30,
+                "centralGravity": 0.05,
+                "springLength": 50,
+                "springConstant": 0.20,
                 "damping": 0.4,
                 "avoidOverlap": 0,
             },
@@ -536,19 +535,27 @@ def _build_kg_html(
             "zoomView": True,
         },
         "nodes": {
-            "chosen": True,
+            "chosen": False,          # disables yellow selection ring
             "physics": True,
+            "borderWidth": 0,
+            "borderWidthSelected": 0,
+            "scaling": {
+                "label": {
+                    "enabled": True,
+                    "drawThreshold": 1,   # draw labels at ANY zoom level
+                    "maxVisible": 30,
+                }
+            },
             "font": {
                 "size": 14,
                 "color": "#000000",
+                "face": "arial",
                 "strokeWidth": 2,
                 "strokeColor": "#FFFFFF",
             },
-            "borderWidth": 0,
-            "borderWidthSelected": 0,
         },
         "edges": {
-            "chosen": True,
+            "chosen": False,
             "physics": True,
             "hoverWidth": 2.5,
             "selectionWidth": 3.0,
@@ -570,10 +577,11 @@ def _build_kg_html(
     if (typeof network === 'undefined' || !network.body) return;
     var updates = Object.keys(_sz).map(function(id) {{
       var s = _sz[id];
-      var f = Math.max(14, Math.min(20, Math.round(s * 0.65)));
+      var f = Math.max(10, Math.min(30, Math.round(s * 0.7)));
       return {{
         id: id,
         size: s,
+        chosen: false,
         borderWidth: 0,
         borderWidthSelected: 0,
         font: {{ size: f, color: '#000000', face: 'arial', strokeWidth: 2, strokeColor: '#FFFFFF' }}
