@@ -73,71 +73,129 @@ class KnowledgeGraph:
                          community_id, weight, label
         Edge attributes: relationship_type, evidence_pmids (list),
                          confidence_score, weight
+
+        Deduplication strategy
+        ──────────────────────
+        NER extracts surface forms verbatim so the same concept can appear
+        as "pericyte", "Pericyte", "pericytes", etc.  We group variants by:
+          1. UMLS CUI + entity_type  (primary — handles all morphological
+             variants because SciSpaCy links them to the same CUI)
+          2. lowercase name + entity_type  (fallback when UMLS is absent)
+        The shortest surface form in each group is used as the display label
+        (singular is typically shorter than plural and is cleaner to display).
+        All edges that reference any variant are rewired to the canonical node.
         """
         import pandas as pd
 
         G = nx.MultiDiGraph()
 
-        # ── Entities ──────────────────────────────────────────────────────────
-        entity_papers: Dict[str, set] = defaultdict(set)
-        entity_type_map: Dict[str, str] = {}
-        entity_umls: Dict[str, Optional[str]] = {}
-
+        # ── Step 1: Collect raw entity rows ──────────────────────────────────
         rows = (
             entities_df.to_dict("records")
             if hasattr(entities_df, "to_dict")
             else (entities_df or [])
         )
+
+        # canonical_key  →  chosen display name (shortest surface form)
+        canon_display: Dict[str, str] = {}
+        # canonical_key  →  merged set of evidence PMIDs
+        canon_papers: Dict[str, set] = defaultdict(set)
+        # canonical_key  →  entity type
+        canon_etype: Dict[str, str] = {}
+        # canonical_key  →  UMLS CUI (first non-None seen)
+        canon_umls: Dict[str, Optional[str]] = {}
+        # raw surface form  →  canonical_key  (for edge rewiring)
+        name_to_key: Dict[str, str] = {}
+
         for row in rows:
             name = str(row.get("name") or row.get("entity_text") or "").strip()
             if not name:
                 continue
             etype = str(row.get("entity_type") or "UNKNOWN")
-            umls = row.get("umls_id") or row.get("umls")
-            pmid = str(row.get("pmid") or row.get("evidence_pmid") or "")
-            entity_type_map[name] = etype
-            entity_umls[name] = umls
-            if pmid:
-                entity_papers[name].add(pmid)
+            umls  = row.get("umls_id") or row.get("umls")
+            pmid  = str(row.get("pmid") or row.get("evidence_pmid") or "")
 
-        for name, etype in entity_type_map.items():
-            paper_count = len(entity_papers.get(name, set()))
+            # Canonical key: prefer UMLS-based grouping so that surface
+            # variants ("pericyte", "pericytes", "Pericyte") that share a
+            # UMLS CUI collapse to one node automatically.
+            if umls:
+                ckey = f"{umls}||{etype}"
+            else:
+                ckey = f"{name.strip().lower()}||{etype}"
+
+            name_to_key[name] = ckey
+
+            if ckey not in canon_display:
+                canon_display[ckey] = name
+                canon_etype[ckey]   = etype
+                canon_umls[ckey]    = umls
+            else:
+                # Keep the shortest surface form as display label
+                # (singular "pericyte" is shorter than plural "pericytes")
+                if len(name) < len(canon_display[ckey]):
+                    canon_display[ckey] = name
+                # Prefer a real UMLS ID over None
+                if not canon_umls[ckey] and umls:
+                    canon_umls[ckey] = umls
+
+            if pmid:
+                canon_papers[ckey].add(pmid)
+
+        # ── Step 2: Add canonical nodes to the graph ─────────────────────────
+        # Also build a lookup: any raw surface form → canonical node name,
+        # used below to rewire relationship edges.
+        key_to_node: Dict[str, str] = {}   # ckey → node ID in G
+        name_to_node: Dict[str, str] = {}  # raw name (and its lowercase) → node ID
+
+        for ckey, display in canon_display.items():
+            etype       = canon_etype[ckey]
+            paper_count = len(canon_papers.get(ckey, set()))
             G.add_node(
-                name,
+                display,
                 entity_type=etype,
                 color_hex=ENTITY_TYPE_COLORS.get(etype, "#9CA3AF"),
-                umls_id=entity_umls.get(name),
+                umls_id=canon_umls.get(ckey),
                 paper_count=paper_count,
                 weight=max(paper_count, 1),
-                label=name,
+                label=display,
                 community_id=0,   # filled by Louvain below
             )
+            key_to_node[ckey] = display
 
-        # ── Relationships ─────────────────────────────────────────────────────
+        for raw_name, ckey in name_to_key.items():
+            node = key_to_node.get(ckey)
+            if node:
+                name_to_node[raw_name]            = node
+                name_to_node[raw_name.lower()]    = node
+
+        # ── Step 3: Aggregate & add relationship edges ────────────────────────
         rel_rows = (
             relationships_df.to_dict("records")
             if hasattr(relationships_df, "to_dict")
             else (relationships_df or [])
         )
 
-        # Aggregate evidence PMIDs per (source, rel_type, target) triple
         edge_evidence: Dict[Tuple, List[str]] = defaultdict(list)
-        edge_conf: Dict[Tuple, float] = defaultdict(float)
+        edge_conf: Dict[Tuple, float]         = defaultdict(float)
 
         for row in rel_rows:
-            src = str(
+            src_raw = str(
                 row.get("source_entity")
                 or row.get("source_entity_name")
                 or ""
             ).strip()
-            tgt = str(
+            tgt_raw = str(
                 row.get("target_entity")
                 or row.get("target_entity_name")
                 or ""
             ).strip()
-            rel = str(row.get("relationship_type") or "associated_with").strip()
+            rel  = str(row.get("relationship_type") or "associated_with").strip()
             pmid = str(row.get("evidence_pmid") or row.get("pmid") or "")
             conf = float(row.get("confidence_score") or 0.7)
+
+            # Rewire to canonical node names
+            src = name_to_node.get(src_raw) or name_to_node.get(src_raw.lower())
+            tgt = name_to_node.get(tgt_raw) or name_to_node.get(tgt_raw.lower())
 
             if not src or not tgt or src == tgt:
                 continue
@@ -175,7 +233,8 @@ class KnowledgeGraph:
 
         self.graph = G
         logger.info(
-            "Knowledge graph built: %d entities, %d relationship edges",
+            "Knowledge graph built: %d entities, %d relationship edges "
+            "(after deduplication)",
             G.number_of_nodes(), G.number_of_edges(),
         )
         return G
