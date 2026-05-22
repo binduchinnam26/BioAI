@@ -195,6 +195,13 @@ _KG_FIT_JS = """
         } else {
           network.fit({ animation: { duration: 700, easingFunction: 'easeInOutQuad' } });
         }
+        // Zoom in a bit more after the fit animation completes
+        setTimeout(function() {
+          network.moveTo({
+            scale: network.getScale() * 1.4,
+            animation: { duration: 400, easingFunction: 'easeInOutQuad' }
+          });
+        }, 750);
       }, ms);
     });
   });
