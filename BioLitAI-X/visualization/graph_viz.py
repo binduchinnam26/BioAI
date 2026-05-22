@@ -97,31 +97,43 @@ _KG_STABILIZE_JS = """
 </script>
 """
 
-# Convert string titles → DOM elements lazily on hover (showPopup event).
-# Eager conversion of all nodes/edges at once created thousands of DOM elements
-# synchronously, blocking the main thread and causing "Page Unresponsive".
-# Now we convert only the one hovered item, just-in-time.
+# Convert string titles → DOM elements AFTER stabilization completes.
+# vis.js v7+ uses textContent (not innerHTML) for string titles, so any HTML
+# in a string title is displayed as raw escaped text. DOM element titles are
+# appended directly (as nodes), so they render correctly as styled HTML.
+# We bulk-convert AFTER stabilizationIterationsDone (physics disabled) so
+# DataSet.update() does NOT trigger O(n²) avoidOverlap recalculation.
 _KG_TOOLTIP_FIX_JS = """
 <script>
 (function() {
-  var _fixed = {};
-  network.on('showPopup', function(id) {
-    if (_fixed[id]) return;
-    _fixed[id] = true;
-    var n = network.body.data.nodes.get(id);
-    if (n && typeof n.title === 'string') {
-      var d = document.createElement('div');
-      d.innerHTML = n.title;
-      network.body.data.nodes.update([{ id: id, title: d }]);
-      return;
-    }
-    var e = network.body.data.edges.get(id);
-    if (e && typeof e.title === 'string') {
-      var d = document.createElement('div');
-      d.innerHTML = e.title;
-      network.body.data.edges.update([{ id: id, title: d }]);
-    }
+  function _convertTitles() {
+    if (typeof network === 'undefined' || !network.body) return;
+    var nodeUpdates = [];
+    network.body.data.nodes.forEach(function(n) {
+      if (typeof n.title === 'string' && n.title.length > 0) {
+        var d = document.createElement('div');
+        d.innerHTML = n.title;
+        nodeUpdates.push({ id: n.id, title: d });
+      }
+    });
+    if (nodeUpdates.length > 0) network.body.data.nodes.update(nodeUpdates);
+
+    var edgeUpdates = [];
+    network.body.data.edges.forEach(function(e) {
+      if (typeof e.title === 'string' && e.title.length > 0) {
+        var d = document.createElement('div');
+        d.innerHTML = e.title;
+        edgeUpdates.push({ id: e.id, title: d });
+      }
+    });
+    if (edgeUpdates.length > 0) network.body.data.edges.update(edgeUpdates);
+  }
+  // Run after physics stops — safe to bulk-update DataSet with no avoidOverlap penalty.
+  // Small delay so _applyNodeSizes (also on stabilizationIterationsDone) runs first.
+  network.once('stabilizationIterationsDone', function() {
+    setTimeout(_convertTitles, 200);
   });
+  setTimeout(_convertTitles, 6000); // fallback if event never fires
 })();
 </script>
 """
