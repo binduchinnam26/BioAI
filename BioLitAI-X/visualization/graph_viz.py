@@ -190,20 +190,25 @@ _KG_FIT_JS = """
           }
           coreIds = core.map(function(x) { return x.id; });
         }
-        // vis.js fit() handles all scale/translation math correctly
+        // Step 1: instant fit (no animation) so we can read the resulting scale
         if (coreIds && coreIds.length > 0) {
-          network.fit({ nodes: coreIds, animation: { duration: 700, easingFunction: 'easeInOutQuad' } });
+          network.fit({ nodes: coreIds, animation: false });
         } else {
-          network.fit({ animation: { duration: 700, easingFunction: 'easeInOutQuad' } });
+          network.fit({ animation: false });
         }
-        // Zoom in a bit more after the fit animation completes
+        // Step 2: single smooth zoom-in — one animation, no flicker
         setTimeout(function() {
           network.moveTo({
             scale: network.getScale() * 1.8,
-            animation: { duration: 400, easingFunction: 'easeInOutQuad' }
+            animation: { duration: 700, easingFunction: 'easeInOutQuad' }
           });
-        }, 750);
+        }, 50);
       }, ms);
+    });
+  });
+})();
+</script>
+"""
     });
   });
 })();
