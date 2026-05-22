@@ -60,10 +60,27 @@ def get_physics_options(node_count: int, network_type: str = "default") -> Dict:
         spring = 150
         overlap = 0.9
 
+    # Co-authorship network: VOSviewer-style circular spread.
+    # centralGravity=0 lets topology drive placement — repulsion pushes
+    # clusters outward uniformly, producing the organic circular arrangement
+    # seen in the reference screenshot (clusters at periphery, none forced
+    # to centre). Strong repulsion separates distinct author communities.
+    if network_type == "coauthorship":
+        grav = -18000
+        central_grav = 0.0
+        spring = 160
+        spring_const = 0.04
+        damping = 0.09
+        overlap = 1.0
+        iterations = 3000
+        timestep = 0.20
+        max_vel = 80
+        min_vel = 0.3
+
     # Keyword networks: zero centralGravity + balanced spring/repulsion.
     # centralGravity=0 prevents circular ring. Stronger repulsion + longer softer
     # springs spread clusters wide across canvas without intra-cluster overlap.
-    if network_type == "keyword":
+    elif network_type == "keyword":
         grav = -55000        # strong repulsion separates clusters across canvas
         central_grav = 0.0   # zero — topology drives placement, no ring force
         spring = 220         # longer: gives nodes within each cluster room
@@ -777,7 +794,7 @@ def render_coauthorship_network(
 
     cache_key = (
         f"_coauth_html_{_VIZ_VERSION}_{key_prefix}_{min_link}_{min_size}_"
-        f"{','.join(map(str, sel_comms))}_{search}_{freeze}"
+        f"{','.join(map(str, sel_comms))}_{search}_{freeze}_coauth"
     )
     if cache_key not in st.session_state or st.session_state[cache_key] is None:
         node_sizes = _compute_node_sizes(filtered, size_min=18, size_max=85)
@@ -821,6 +838,7 @@ def render_coauthorship_network(
         net = _build_pyvis_network(
             filtered, node_sizes, edge_widths, node_weights,
             label_fn, tooltip_fn, _default_edge_tooltip,
+            network_type="coauthorship",
         )
         if freeze:
             net.toggle_physics(False)
