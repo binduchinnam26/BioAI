@@ -142,10 +142,13 @@ _KG_FIT_JS = """
 <script>
 (function() {
   network.once('stabilizationIterationsDone', function() {
+    var _done = false;
     [400, 1000, 2000].forEach(function(ms) {
       setTimeout(function() {
+        if (_done) return;
         var el = document.getElementById('mynetwork');
         if (el && el.offsetWidth > 50 && el.offsetHeight > 50) {
+          _done = true;
           network.fit({ animation: { duration: 500, easingFunction: 'easeInOutQuad' } });
           // Zoom in 40% more after fit animation completes
           setTimeout(function() {
