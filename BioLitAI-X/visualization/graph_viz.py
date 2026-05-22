@@ -418,7 +418,7 @@ def _build_kg_html(
     d_min = min(degrees.values(), default=1)
     d_max = max(degrees.values(), default=1)
     node_sizes = {
-        n: scale_node_size(degrees.get(n, 1), d_min, d_max, 7, 32)
+        n: scale_node_size(degrees.get(n, 1), d_min, d_max, 10, 40)
         for n in graph.nodes()
     }
 
@@ -441,7 +441,7 @@ def _build_kg_html(
         # Font must be large in vis.js units so it stays above vis.js's
         # ~4px hide-threshold at typical zoom levels (0.2–0.4 after fit).
         # At zoom=0.25: font=40 → 10px screen (readable), font=14 → 3.5px (hidden).
-        node_size_val = node_sizes.get(node, 7)
+        node_size_val = node_sizes.get(node, 10)
         font_px = max(14, min(20, int(node_size_val * 0.65)))
         font = {
             "size": font_px,
@@ -580,7 +580,7 @@ def _build_kg_html(
     if (typeof network === 'undefined' || !network.body) return;
     var updates = Object.keys(_sz).map(function(id) {{
       var s = _sz[id];
-      var f = Math.max(10, Math.min(20, Math.round(s * 0.65)));
+      var f = Math.max(10, Math.min(24, Math.round(s * 0.65)));
       return {{
         id: id,
         size: s,
