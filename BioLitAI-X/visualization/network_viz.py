@@ -914,6 +914,36 @@ def render_coauthorship_network(
             _node['y'] = _rnd.uniform(-_spread, _spread)
 
         html = _pyvis_to_html(net, filtered.number_of_nodes())
+
+        # Hover effect: enlarge node + increase label size on hover.
+        # vis.js chosen.node / chosen.label callbacks must be real JS
+        # functions (not JSON), so they are injected via setOptions after
+        # the network is initialised.
+        _hover_js = """<script>
+(function() {
+  network.setOptions({
+    nodes: {
+      chosen: {
+        node: function(values, id, selected, hovering) {
+          if (hovering) {
+            values.size = values.size * 1.35;
+          }
+        },
+        label: function(values, id, selected, hovering) {
+          if (hovering) {
+            values.size        = values.size * 1.6;
+            values.color       = '#000000';
+            values.strokeWidth = 3;
+            values.strokeColor = '#ffffff';
+          }
+        }
+      }
+    }
+  });
+})();
+</script>"""
+        html = html.replace("</body>", _hover_js + "\n</body>")
+
         st.session_state[cache_key] = html
     else:
         html = st.session_state[cache_key]
