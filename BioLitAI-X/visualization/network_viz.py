@@ -894,6 +894,7 @@ def render_coauthorship_network(
             filtered, node_sizes, edge_widths, node_weights,
             label_fn, tooltip_fn, _default_edge_tooltip,
             network_type="coauthorship",
+            node_opacity=0.78,
         )
         if freeze:
             net.toggle_physics(False)
