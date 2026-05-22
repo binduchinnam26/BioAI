@@ -78,7 +78,7 @@ def get_physics_options(node_count: int, network_type: str = "default") -> Dict:
                     "springLength": 100,
                     "springConstant": 0.08,
                     "damping": 0.4,
-                    "avoidOverlap": 0,
+                    "avoidOverlap": 0.5,
                 },
                 "maxVelocity": 80,
                 "minVelocity": 0.3,
