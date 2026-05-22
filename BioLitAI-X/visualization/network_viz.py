@@ -934,7 +934,7 @@ def render_coauthorship_network(
         },
         label: function(values, id, selected, hovering) {
           if (hovering) {
-            values.size        = values.size * 25.0;
+            values.size        = values.size * 15.0;
             values.color       = '#000000';
             values.strokeWidth = 3;
             values.strokeColor = '#ffffff';
