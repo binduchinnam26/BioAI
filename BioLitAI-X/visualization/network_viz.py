@@ -934,7 +934,8 @@ def render_coauthorship_network(
         },
         label: function(values, id, selected, hovering) {
           if (hovering) {
-            values.size        = values.size * 15.0;
+            var isHidden = window._coauthHiddenSet && window._coauthHiddenSet.has(id);
+            values.size        = values.size * (isHidden ? 1.5 : 15.0);
             values.color       = '#000000';
             values.strokeWidth = 3;
             values.strokeColor = '#ffffff';
