@@ -144,7 +144,8 @@ class NetworkBuilder:
             G.nodes[node]["community_id"] = cid
             G.nodes[node]["color_hex"] = color_map[cid]
 
-        _mark_isolated_communities(G)
+        # _mark_isolated_communities intentionally omitted here so every
+        # author node keeps its full community color instead of being greyed.
 
         logger.info(
             "Co-authorship network: %d authors, %d edges",

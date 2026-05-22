@@ -780,7 +780,7 @@ def render_coauthorship_network(
         f"{','.join(map(str, sel_comms))}_{search}_{freeze}"
     )
     if cache_key not in st.session_state or st.session_state[cache_key] is None:
-        node_sizes = _compute_node_sizes(filtered)
+        node_sizes = _compute_node_sizes(filtered, size_min=18, size_max=85)
         edge_widths = _compute_edge_widths(filtered)
         node_weights = {n: filtered.nodes[n].get("weight", 1)
                         for n in filtered.nodes()}
