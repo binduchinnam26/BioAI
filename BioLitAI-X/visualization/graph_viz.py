@@ -81,6 +81,7 @@ _KG_STABILIZE_JS = """
 (function() {
   network.once('stabilizationIterationsDone', function() {
     network.setOptions({ physics: { enabled: false } });
+    network.stopSimulation();
   });
 })();
 </script>
