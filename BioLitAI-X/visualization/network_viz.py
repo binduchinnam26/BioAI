@@ -116,7 +116,7 @@ def get_physics_options(node_count: int, network_type: str = "default") -> Dict:
                 "physics": True,
                 "shadow": False,
                 "font": {
-                    "size": 14,
+                    "size": 20,
                     "color": "#000000",
                     "strokeWidth": 2,
                     "strokeColor": "#FFFFFF",
@@ -895,6 +895,7 @@ def render_coauthorship_network(
             label_fn, tooltip_fn, _default_edge_tooltip,
             network_type="coauthorship",
             node_opacity=0.78,
+            font_size_boost=8,
         )
         if freeze:
             net.toggle_physics(False)
