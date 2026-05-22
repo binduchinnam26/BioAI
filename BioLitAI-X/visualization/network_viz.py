@@ -69,6 +69,9 @@ def get_physics_options(node_count: int, network_type: str = "default") -> Dict:
     # in one compact mass without scattering them across the canvas.
     if network_type == "coauthorship":
         return {
+            "layout": {
+                "improvedLayout": False,
+            },
             "physics": {
                 "enabled": True,
                 "solver": "forceAtlas2Based",
