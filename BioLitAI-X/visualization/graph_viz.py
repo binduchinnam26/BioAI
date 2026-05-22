@@ -87,6 +87,39 @@ _KG_STABILIZE_JS = """
 </script>
 """
 
+# Convert string titles → DOM elements so vis.js renders them as HTML,
+# not as escaped plain text (vis.js newer versions treat string titles as text).
+_KG_TOOLTIP_FIX_JS = """
+<script>
+(function() {
+  function _fixTooltips() {
+    if (typeof network === 'undefined' || !network.body) return;
+    var nUp = [];
+    network.body.data.nodes.get().forEach(function(n) {
+      if (n.title && typeof n.title === 'string') {
+        var d = document.createElement('div');
+        d.innerHTML = n.title;
+        nUp.push({ id: n.id, title: d });
+      }
+    });
+    if (nUp.length) network.body.data.nodes.update(nUp);
+    var eUp = [];
+    network.body.data.edges.get().forEach(function(e) {
+      if (e.title && typeof e.title === 'string') {
+        var d = document.createElement('div');
+        d.innerHTML = e.title;
+        eUp.push({ id: e.id, title: d });
+      }
+    });
+    if (eUp.length) network.body.data.edges.update(eUp);
+  }
+  _fixTooltips();
+  setTimeout(_fixTooltips, 300);
+  network.once('stabilizationIterationsDone', _fixTooltips);
+})();
+</script>
+"""
+
 _GAP_HIGHLIGHT_JS = """
 <script>
 (function() {
@@ -236,7 +269,7 @@ def _post_process_kg_html(
     html = html.replace(
         "</body>",
         _PULSE_CSS + _KG_STABILIZE_JS + _KG_HIGHLIGHT_JS + gap_js
-        + _CONTROLS_JS + _KG_FIT_JS + "</body>",
+        + _CONTROLS_JS + _KG_FIT_JS + _KG_TOOLTIP_FIX_JS + "</body>",
     )
     return html
 
