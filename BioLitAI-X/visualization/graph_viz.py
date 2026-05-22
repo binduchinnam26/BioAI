@@ -559,21 +559,14 @@ def _build_kg_html(
     # clusters wide across the canvas; centralGravity=0 means topology
     # alone drives placement (no ring force), matching the keyword network
     # arrangement while keeping all directed edges, colours and tooltips.
-    n = graph.number_of_nodes()
-    if n > 500:
-        _grav, _spring = -8000, 100
-    elif n > 100:
-        _grav, _spring = -55000, 220
-    else:
-        _grav, _spring = -30000, 180
     opts = {
         "physics": {
             "enabled": True,
             "solver": "barnesHut",
             "barnesHut": {
-                "gravitationalConstant": _grav,
+                "gravitationalConstant": -55000,
                 "centralGravity": 0.0,
-                "springLength": _spring,
+                "springLength": 220,
                 "springConstant": 0.05,
                 "damping": 0.10,
                 "avoidOverlap": 1.0,
