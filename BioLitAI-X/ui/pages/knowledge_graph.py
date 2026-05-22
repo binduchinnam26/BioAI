@@ -96,9 +96,6 @@ def render_knowledge_graph(session_state):
     except Exception as exc:
         st.error(f"Knowledge graph rendering failed: {exc}")
 
-    # ── Gap summary below graph ────────────────────────────────────────────────
-    if gap_report:
-        _render_gap_summary(gap_report)
 
 
 def _no_data_placeholder():
