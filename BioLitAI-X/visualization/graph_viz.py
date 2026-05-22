@@ -198,7 +198,7 @@ _KG_FIT_JS = """
         // Zoom in a bit more after the fit animation completes
         setTimeout(function() {
           network.moveTo({
-            scale: network.getScale() * 1.4,
+            scale: network.getScale() * 1.8,
             animation: { duration: 400, easingFunction: 'easeInOutQuad' }
           });
         }, 750);
