@@ -149,11 +149,34 @@ _KG_FIT_JS = """
         var el = document.getElementById('mynetwork');
         if (el && el.offsetWidth > 50 && el.offsetHeight > 50) {
           _done = true;
-          network.fit({ animation: { duration: 500, easingFunction: 'easeInOutQuad' } });
-          // Zoom in after fit animation completes
+          // Fit to main cluster only (ignore distant outlier nodes)
+          var positions = network.getPositions();
+          var ids = Object.keys(positions);
+          if (ids.length > 0) {
+            // Compute centroid
+            var cx = 0, cy = 0;
+            ids.forEach(function(id) { cx += positions[id].x; cy += positions[id].y; });
+            cx /= ids.length; cy /= ids.length;
+            // Sort by distance from centroid
+            var dists = ids.map(function(id) {
+              var dx = positions[id].x - cx, dy = positions[id].y - cy;
+              return { id: id, d: Math.sqrt(dx*dx + dy*dy) };
+            });
+            dists.sort(function(a, b) { return a.d - b.d; });
+            // Keep central 85% of nodes for fit (drop far-flung outliers)
+            var keep = Math.max(1, Math.ceil(dists.length * 0.85));
+            var mainNodes = dists.slice(0, keep).map(function(x) { return x.id; });
+            network.fit({
+              nodes: mainNodes,
+              animation: { duration: 500, easingFunction: 'easeInOutQuad' }
+            });
+          } else {
+            network.fit({ animation: { duration: 500, easingFunction: 'easeInOutQuad' } });
+          }
+          // Zoom in slightly after fit settles
           setTimeout(function() {
             network.moveTo({
-              scale: network.getScale() * 2.5,
+              scale: network.getScale() * 1.3,
               animation: { duration: 300, easingFunction: 'easeInOutQuad' }
             });
           }, 550);
