@@ -68,6 +68,20 @@ _PULSE_CSS = """
 </style>
 """
 
+# KG-specific stabilise: disable physics only — NO fit() calls.
+# _STABILIZE_JS (from network_viz) also calls fit() at 300/800/1500/2500ms
+# which overrides the custom bounding-box zoom in _KG_FIT_JS.  We inject
+# this script instead of _STABILIZE_JS so the KG fit is never clobbered.
+_KG_STABILIZE_JS = """
+<script>
+(function() {
+  network.once('stabilizationIterationsDone', function() {
+    network.setOptions({ physics: { enabled: false } });
+  });
+})();
+</script>
+"""
+
 _GAP_HIGHLIGHT_JS = """
 <script>
 (function() {
@@ -217,7 +231,7 @@ def _post_process_kg_html(
     gap_js = _GAP_HIGHLIGHT_JS.replace("__GAP_NODES_JSON__", gap_json)
     html = html.replace(
         "</body>",
-        _PULSE_CSS + _STABILIZE_JS + _KG_HIGHLIGHT_JS + gap_js
+        _PULSE_CSS + _KG_STABILIZE_JS + _KG_HIGHLIGHT_JS + gap_js
         + _CONTROLS_JS + _KG_FIT_JS + "</body>",
     )
     return html
