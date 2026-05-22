@@ -919,6 +919,9 @@ def render_coauthorship_network(
         # vis.js chosen.node / chosen.label callbacks must be real JS
         # functions (not JSON), so they are injected via setOptions after
         # the network is initialised.
+        # chosen.label checks window._coauthHiddenSet: nodes whose label
+        # was hidden get no size multiplier (just shown at normal size);
+        # nodes whose label was already visible get the 10x enlargement.
         _hover_js = """<script>
 (function() {
   network.setOptions({
@@ -931,7 +934,10 @@ def render_coauthorship_network(
         },
         label: function(values, id, selected, hovering) {
           if (hovering) {
-            values.size        = values.size * 10.0;
+            var isHidden = window._coauthHiddenSet && window._coauthHiddenSet.has(id);
+            if (!isHidden) {
+              values.size = values.size * 10.0;
+            }
             values.color       = '#000000';
             values.strokeWidth = 3;
             values.strokeColor = '#ffffff';
@@ -946,13 +952,12 @@ def render_coauthorship_network(
 
         # Label overlap avoidance: hide labels that overlap a larger neighbour;
         # reveal the hidden label when the user hovers that node.
-        # Uses the same greedy largest-first algorithm as the keyword network.
-        # Timing: _STABILIZE_JS fires fit() up to 2500ms after stabilization,
-        # so _run() is deferred 3500ms to ensure final viewport is set.
+        # _hiddenSet is exposed as window._coauthHiddenSet so the chosen.label
+        # callback above can skip the 10x multiplier for revealed-hidden labels.
         _coauth_overlap_js = """<script>
 (function() {
   var _origLabels = {};
-  var _hiddenSet  = new Set();
+  window._coauthHiddenSet = new Set();
   var CHAR_W = 0.55;
   var PAD    = 4;
 
@@ -996,10 +1001,9 @@ def render_coauthorship_network(
         if (allNodes.get(id).label !== lbl) updates.push({ id: id, label: lbl });
       }
     });
-    _hiddenSet = hidden;
+    window._coauthHiddenSet = hidden;
     if (updates.length) allNodes.update(updates);
   }
-
   // Run after _STABILIZE_JS finishes its last fit() at ~2500ms
   network.once('stabilizationIterationsDone', function() {
     setTimeout(_run, 3500);
@@ -1011,11 +1015,11 @@ def render_coauthorship_network(
 
   // Reveal hidden label on hover; re-hide on blur
   network.on('hoverNode', function(p) {
-    if (_hiddenSet.has(p.node) && _origLabels[p.node])
+    if (window._coauthHiddenSet.has(p.node) && _origLabels[p.node])
       allNodes.update([{ id: p.node, label: _origLabels[p.node] }]);
   });
   network.on('blurNode', function(p) {
-    if (_hiddenSet.has(p.node))
+    if (window._coauthHiddenSet.has(p.node))
       allNodes.update([{ id: p.node, label: '' }]);
   });
 })();
