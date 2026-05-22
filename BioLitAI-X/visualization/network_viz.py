@@ -76,18 +76,26 @@ def get_physics_options(node_count: int, network_type: str = "default") -> Dict:
                 "enabled": True,
                 "solver": "forceAtlas2Based",
                 "forceAtlas2Based": {
-                    "gravitationalConstant": -60,
-                    "centralGravity": 0.01,
-                    "springLength": 100,
+                    # springLength=1 collapses connected nodes toward the same
+                    # point; avoidOverlap=1.0 then stops them at exact touching
+                    # distance (sum of radii). This creates a unique BLOB
+                    # equilibrium — nodes pack at contact — rather than the ring
+                    # equilibrium produced by large springLength where nodes
+                    # settle equidistant around a hub. Since node sizes vary
+                    # (paper-count scaled 18-85), touching distances differ per
+                    # pair, naturally breaking symmetry.
+                    "gravitationalConstant": -20,
+                    "centralGravity": 0.02,
+                    "springLength": 1,
                     "springConstant": 0.08,
                     "damping": 0.4,
-                    "avoidOverlap": 0.5,
+                    "avoidOverlap": 1.0,
                 },
                 "maxVelocity": 80,
                 "minVelocity": 0.3,
                 "stabilization": {
                     "enabled": True,
-                    "iterations": 2000,
+                    "iterations": 3000,
                     "updateInterval": 25,
                     "fit": True,
                 },
