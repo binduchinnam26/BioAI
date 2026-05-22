@@ -242,11 +242,6 @@ _KG_FIT_JS = """
 })();
 </script>
 """
-    });
-  });
-})();
-</script>
-"""
 
 
 def _post_process_kg_html(
