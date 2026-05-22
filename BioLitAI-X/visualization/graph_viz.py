@@ -69,6 +69,16 @@ _PULSE_CSS = """
   100% { border-color: #FBBF24; box-shadow: 0 0 0 0 rgba(251,191,36,0); }
 }
 .gap-node { animation: pulse 1.8s infinite; }
+/* Remove vis.js default tooltip shell (white border + beige bg + nowrap) */
+.vis-tooltip {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  border-radius: 0 !important;
+  white-space: normal !important;
+  max-width: 300px !important;
+}
 </style>
 """
 
@@ -709,7 +719,8 @@ def _kg_node_tooltip(node: str, data: Dict, graph: nx.MultiDiGraph) -> str:
     )
 
     content = (
-        f'<div style="font-size:14px;font-weight:700;color:#FFFFFF;margin-bottom:4px;">'
+        f'<div style="font-size:14px;font-weight:700;color:#FFFFFF;margin-bottom:4px;'
+        f'word-wrap:break-word;overflow-wrap:break-word;white-space:normal;">'
         f'{node}</div>'
         f'<div style="margin-bottom:6px;">'
         f'<span style="background:{color};color:#000;font-size:10px;'
