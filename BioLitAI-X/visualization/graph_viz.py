@@ -676,10 +676,11 @@ def _build_kg_html(
     }});
     network.body.data.nodes.update(updates);
   }}
-  _applyNodeSizes();
-  setTimeout(_applyNodeSizes, 100);
-  setTimeout(_applyNodeSizes, 500);
+  // Apply ONLY after stabilization completes — calling DataSet.update()
+  // while avoidOverlap physics is running triggers O(n²) force recalculation
+  // for every updated node, blocking the main thread and causing "Page Unresponsive".
   network.once('stabilizationIterationsDone', _applyNodeSizes);
+  setTimeout(_applyNodeSizes, 5000); // fallback if event never fires
 }})();
 </script>"""
     html = html.replace("</body>", _node_size_js + "\n</body>")
