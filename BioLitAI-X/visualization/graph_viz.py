@@ -79,10 +79,14 @@ _PULSE_CSS = """
 _KG_STABILIZE_JS = """
 <script>
 (function() {
-  network.once('stabilizationIterationsDone', function() {
+  function _stop() {
     network.setOptions({ physics: { enabled: false } });
     network.stopSimulation();
-  });
+  }
+  // Real-time physics: stop when velocity drops below minVelocity
+  network.once('stabilized', _stop);
+  // Hard fallback: stop after 8s regardless
+  setTimeout(_stop, 8000);
 })();
 </script>
 """
@@ -115,7 +119,7 @@ _KG_TOOLTIP_FIX_JS = """
   }
   _fixTooltips();
   setTimeout(_fixTooltips, 300);
-  network.once('stabilizationIterationsDone', _fixTooltips);
+  network.once('stabilized', _fixTooltips);
 })();
 </script>
 """
@@ -191,8 +195,8 @@ network.on('doubleClick', function(params) {
 _KG_FIT_JS = """
 <script>
 (function() {
-  network.once('stabilizationIterationsDone', function() {
-    // Fire at 500ms; retry at 1500ms and 3000ms if not done yet.
+  network.once('stabilized', function() {
+    // Fire at 500ms after physics settles; retry at 1500ms / 3000ms if needed.
     // No canvas-dimension guard — fit() works regardless of offsetWidth.
     var _done = false;
     [500, 1500, 3000].forEach(function(ms) {
@@ -607,10 +611,7 @@ def _build_kg_html(
             "maxVelocity": 100,
             "minVelocity": 0.10,
             "stabilization": {
-                "enabled": True,
-                "iterations": 2000,
-                "updateInterval": 25,
-                "fit": False,
+                "enabled": False,
             },
             "timestep": 0.20,
         },
@@ -673,7 +674,7 @@ def _build_kg_html(
   _applyNodeSizes();
   setTimeout(_applyNodeSizes, 100);
   setTimeout(_applyNodeSizes, 500);
-  network.once('stabilizationIterationsDone', _applyNodeSizes);
+  network.once('stabilized', _applyNodeSizes);
 }})();
 </script>"""
     html = html.replace("</body>", _node_size_js + "\n</body>")
