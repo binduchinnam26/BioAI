@@ -60,24 +60,66 @@ def get_physics_options(node_count: int, network_type: str = "default") -> Dict:
         spring = 150
         overlap = 0.9
 
-    # Co-authorship network: VOSviewer-style layout.
-    # centralGravity=0.35 keeps the whole network as one circular mass.
-    # springLength=30 (very short) pulls cluster members extremely close —
-    # this is what creates tight organic blobs instead of circular rings.
-    # avoidOverlap=0 removes the outward-push that causes ring formation:
-    # with no symmetric push, nodes huddle into an irregular blob.
-    # Stronger repulsion (-12000) keeps distinct communities separated.
+    # Co-authorship network: use forceAtlas2Based solver instead of barnesHut.
+    # barnesHut applies global pairwise repulsion between ALL nodes — this pushes
+    # intra-cluster nodes into polygon rings regardless of avoidOverlap settings.
+    # forceAtlas2Based uses hub-weighted repulsion: high-degree nodes repel more,
+    # which naturally separates communities while keeping cluster members in
+    # tight organic blobs (not rings). centralGravity=0.01 keeps all clusters
+    # in one compact mass without scattering them across the canvas.
     if network_type == "coauthorship":
-        grav = -12000
-        central_grav = 0.35
-        spring = 30
-        spring_const = 0.10
-        damping = 0.10
-        overlap = 0.0
-        iterations = 3000
-        timestep = 0.25
-        max_vel = 80
-        min_vel = 0.3
+        return {
+            "physics": {
+                "enabled": True,
+                "solver": "forceAtlas2Based",
+                "forceAtlas2Based": {
+                    "gravitationalConstant": -60,
+                    "centralGravity": 0.01,
+                    "springLength": 100,
+                    "springConstant": 0.08,
+                    "damping": 0.4,
+                    "avoidOverlap": 0,
+                },
+                "maxVelocity": 80,
+                "minVelocity": 0.3,
+                "stabilization": {
+                    "enabled": True,
+                    "iterations": 2000,
+                    "updateInterval": 25,
+                    "fit": True,
+                },
+                "timestep": 0.25,
+            },
+            "interaction": {
+                "hover": True,
+                "tooltipDelay": 150,
+                "hideEdgesOnDrag": True,
+                "hideEdgesOnZoom": False,
+                "multiselect": True,
+                "navigationButtons": False,
+                "keyboard": {"enabled": False},
+                "zoomView": True,
+            },
+            "nodes": {
+                "chosen": True,
+                "physics": True,
+                "shadow": False,
+                "font": {
+                    "size": 14,
+                    "color": "#000000",
+                    "strokeWidth": 2,
+                    "strokeColor": "#FFFFFF",
+                    "vadjust": 0,
+                },
+            },
+            "edges": {
+                "chosen": True,
+                "physics": True,
+                "hoverWidth": 2.5,
+                "selectionWidth": 3.0,
+                "smooth": {"type": "continuous", "roundness": 0.1},
+            },
+        }
 
     # Keyword networks: zero centralGravity + balanced spring/repulsion.
     # centralGravity=0 prevents circular ring. Stronger repulsion + longer softer
