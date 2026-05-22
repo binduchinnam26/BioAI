@@ -150,10 +150,10 @@ _KG_FIT_JS = """
         if (el && el.offsetWidth > 50 && el.offsetHeight > 50) {
           _done = true;
           network.fit({ animation: { duration: 500, easingFunction: 'easeInOutQuad' } });
-          // Zoom in 40% more after fit animation completes
+          // Zoom in 70% more after fit animation completes
           setTimeout(function() {
             network.moveTo({
-              scale: network.getScale() * 1.4,
+              scale: network.getScale() * 1.7,
               animation: { duration: 300, easingFunction: 'easeInOutQuad' }
             });
           }, 550);
