@@ -6,18 +6,22 @@ panel, and relationship evidence table.
 
 import hashlib as _hashlib
 import json
+import os as _os
 import re
 from typing import Any, Dict, List, Optional
 
 import networkx as nx
 
-# Own-file hash so cache busts whenever graph_viz.py changes (independent of
-# network_viz._VIZ_VERSION which only tracks network_viz.py changes).
+# Own-file version — uses mtime so it refreshes every time the file is saved,
+# guaranteeing the Streamlit session_state cache is busted on every deploy.
 try:
-    with open(__file__, "rb") as _f:
-        _KG_VERSION = "kg" + _hashlib.md5(_f.read()).hexdigest()[:10]
+    _KG_VERSION = "kgmt" + str(int(_os.path.getmtime(__file__)))
 except Exception:
-    _KG_VERSION = "kg1"
+    try:
+        with open(__file__, "rb") as _f:
+            _KG_VERSION = "kg" + _hashlib.md5(_f.read()).hexdigest()[:10]
+    except Exception:
+        _KG_VERSION = "kg1"
 
 from config import (
     CANVAS_BG,
@@ -150,59 +154,46 @@ network.on('doubleClick', function(params) {
 
 # Robust post-stabilisation fit for the KG.
 # Retries at three increasing delays so at least one call lands after
-# Streamlit's iframe has its final pixel dimensions (the container's
-# offsetWidth/offsetHeight must be non-zero for fit() to work correctly).
 _KG_FIT_JS = """
 <script>
 (function() {
   network.once('stabilizationIterationsDone', function() {
+    // Fire at 500ms; retry at 1500ms and 3000ms if not done yet.
+    // No canvas-dimension guard — fit() works regardless of offsetWidth.
     var _done = false;
-    [400, 1000, 2000].forEach(function(ms) {
+    [500, 1500, 3000].forEach(function(ms) {
       setTimeout(function() {
         if (_done) return;
-        var el = document.getElementById('mynetwork');
-        if (el && el.offsetWidth > 50 && el.offsetHeight > 50) {
-          _done = true;
-          var positions = network.getPositions();
-          var ids = Object.keys(positions);
-          if (ids.length > 0) {
-            // Step 1: compute centroid of all nodes
-            var cx0 = 0, cy0 = 0;
-            ids.forEach(function(id) { cx0 += positions[id].x; cy0 += positions[id].y; });
-            cx0 /= ids.length; cy0 /= ids.length;
-            // Step 2: distances from centroid
-            var dists = ids.map(function(id) {
-              var dx = positions[id].x - cx0, dy = positions[id].y - cy0;
-              return { id: id, d: Math.sqrt(dx * dx + dy * dy) };
-            });
-            // Step 3: keep nodes within mean + 1.5*std (drop far-flung isolated components)
-            var mean = dists.reduce(function(s, x) { return s + x.d; }, 0) / dists.length;
-            var vari = dists.reduce(function(s, x) { return s + (x.d - mean) * (x.d - mean); }, 0) / dists.length;
-            var std = Math.sqrt(vari);
-            var thr = mean + 1.5 * std;
-            var core = dists.filter(function(x) { return x.d <= thr; });
-            if (core.length < 3) {
-              dists.sort(function(a, b) { return a.d - b.d; });
-              core = dists.slice(0, Math.max(3, Math.ceil(dists.length * 0.6)));
-            }
-            // Step 4: compute tight bounding box of core cluster
-            var xs = core.map(function(x) { return positions[x.id].x; });
-            var ys = core.map(function(x) { return positions[x.id].y; });
-            var minX = Math.min.apply(null, xs), maxX = Math.max.apply(null, xs);
-            var minY = Math.min.apply(null, ys), maxY = Math.max.apply(null, ys);
-            var cx = (minX + maxX) / 2, cy = (minY + maxY) / 2;
-            var w = (maxX - minX) || 1, h = (maxY - minY) || 1;
-            // Step 5: scale so core fills ~78% of canvas, then move there directly
-            var canvasW = el.offsetWidth, canvasH = el.offsetHeight;
-            var scale = Math.min(canvasW * 0.78 / w, canvasH * 0.78 / h);
-            network.moveTo({
-              position: { x: cx, y: cy },
-              scale: scale,
-              animation: { duration: 600, easingFunction: 'easeInOutQuad' }
-            });
-          } else {
-            network.fit({ animation: { duration: 500, easingFunction: 'easeInOutQuad' } });
+        _done = true;
+        var positions = network.getPositions();
+        var ids = Object.keys(positions);
+        var coreIds;
+        if (ids.length >= 4) {
+          // Centroid of all nodes
+          var cx0 = 0, cy0 = 0;
+          ids.forEach(function(id) { cx0 += positions[id].x; cy0 += positions[id].y; });
+          cx0 /= ids.length; cy0 /= ids.length;
+          // Distance of every node from centroid
+          var dists = ids.map(function(id) {
+            var dx = positions[id].x - cx0, dy = positions[id].y - cy0;
+            return { id: id, d: Math.sqrt(dx * dx + dy * dy) };
+          });
+          // Keep nodes within mean + 1.5*stddev (cuts isolated outlier components)
+          var mean = dists.reduce(function(s, x) { return s + x.d; }, 0) / dists.length;
+          var vari = dists.reduce(function(s, x) { return s + (x.d - mean) * (x.d - mean); }, 0) / dists.length;
+          var thr = mean + 1.5 * Math.sqrt(vari);
+          var core = dists.filter(function(x) { return x.d <= thr; });
+          if (core.length < 3) {
+            dists.sort(function(a, b) { return a.d - b.d; });
+            core = dists.slice(0, Math.ceil(dists.length * 0.6));
           }
+          coreIds = core.map(function(x) { return x.id; });
+        }
+        // vis.js fit() handles all scale/translation math correctly
+        if (coreIds && coreIds.length > 0) {
+          network.fit({ nodes: coreIds, animation: { duration: 700, easingFunction: 'easeInOutQuad' } });
+        } else {
+          network.fit({ animation: { duration: 700, easingFunction: 'easeInOutQuad' } });
         }
       }, ms);
     });
