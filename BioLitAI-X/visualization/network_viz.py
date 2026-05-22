@@ -60,20 +60,22 @@ def get_physics_options(node_count: int, network_type: str = "default") -> Dict:
         spring = 150
         overlap = 0.9
 
-    # Co-authorship network: VOSviewer-style circular spread.
-    # centralGravity=0 lets topology drive placement — repulsion pushes
-    # clusters outward uniformly, producing the organic circular arrangement
-    # seen in the reference screenshot (clusters at periphery, none forced
-    # to centre). Strong repulsion separates distinct author communities.
+    # Co-authorship network: VOSviewer-style layout.
+    # centralGravity=0.35 pulls ALL clusters toward the centre so the whole
+    # network occupies one roughly-circular mass (not scattered islands).
+    # Moderate repulsion separates distinct communities without scattering them.
+    # Short springLength + stiffer springConstant keeps cluster members in a
+    # tight organic blob. Low avoidOverlap prevents nodes within a cluster
+    # from pushing each other outward into a circular ring pattern.
     if network_type == "coauthorship":
-        grav = -18000
-        central_grav = 0.0
-        spring = 160
-        spring_const = 0.04
-        damping = 0.09
-        overlap = 1.0
+        grav = -6000
+        central_grav = 0.35
+        spring = 80
+        spring_const = 0.08
+        damping = 0.10
+        overlap = 0.3
         iterations = 3000
-        timestep = 0.20
+        timestep = 0.25
         max_vel = 80
         min_vel = 0.3
 
