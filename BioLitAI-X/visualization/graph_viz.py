@@ -510,30 +510,38 @@ def _build_kg_html(
             arrowStrikethrough=False,
         )
 
-    # Compact VOSviewer-style physics: very short spring length (60) pulls
-    # connected nodes tightly together; mild repulsion (-80) keeps nodes
-    # separated within clusters without spreading the graph wide.
+    # barnesHut with keyword-network settings: strong repulsion spreads
+    # clusters wide across the canvas; centralGravity=0 means topology
+    # alone drives placement (no ring force), matching the keyword network
+    # arrangement while keeping all directed edges, colours and tooltips.
+    n = graph.number_of_nodes()
+    if n > 500:
+        _grav, _spring = -8000, 100
+    elif n > 100:
+        _grav, _spring = -55000, 220
+    else:
+        _grav, _spring = -30000, 180
     opts = {
         "physics": {
             "enabled": True,
-            "solver": "forceAtlas2Based",
-            "forceAtlas2Based": {
-                "gravitationalConstant": -80,
-                "centralGravity": 0.02,
-                "springLength": 60,
-                "springConstant": 0.15,
-                "damping": 0.4,
-                "avoidOverlap": 0,
+            "solver": "barnesHut",
+            "barnesHut": {
+                "gravitationalConstant": _grav,
+                "centralGravity": 0.0,
+                "springLength": _spring,
+                "springConstant": 0.05,
+                "damping": 0.10,
+                "avoidOverlap": 1.0,
             },
             "maxVelocity": 100,
             "minVelocity": 0.10,
             "stabilization": {
                 "enabled": True,
-                "iterations": 10000,
+                "iterations": 6000,
                 "updateInterval": 25,
                 "fit": False,
             },
-            "timestep": 0.25,
+            "timestep": 0.20,
         },
         "interaction": {
             "hover": True,
