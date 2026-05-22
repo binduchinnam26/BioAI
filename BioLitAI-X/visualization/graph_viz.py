@@ -147,6 +147,13 @@ _KG_FIT_JS = """
         var el = document.getElementById('mynetwork');
         if (el && el.offsetWidth > 50 && el.offsetHeight > 50) {
           network.fit({ animation: { duration: 500, easingFunction: 'easeInOutQuad' } });
+          // Zoom in 40% more after fit animation completes
+          setTimeout(function() {
+            network.moveTo({
+              scale: network.getScale() * 1.4,
+              animation: { duration: 300, easingFunction: 'easeInOutQuad' }
+            });
+          }, 550);
         }
       }, ms);
     });
