@@ -498,10 +498,10 @@ def _build_kg_html(
 
         # Full color dict — matches keyword network node color structure
         node_color = {
-            "background": fill_hex,
-            "border": fill_hex,
-            "highlight": {"background": fill_hex, "border": "#000000"},
-            "hover":     {"background": fill_hex, "border": "#333333"},
+            "background": hex_to_rgba(fill_hex, 0.78),
+            "border":     hex_to_rgba(fill_hex, 0.90),
+            "highlight": {"background": hex_to_rgba(fill_hex, 0.95), "border": "#000000"},
+            "hover":     {"background": hex_to_rgba(fill_hex, 0.88), "border": "#333333"},
         }
 
         net.add_node(
