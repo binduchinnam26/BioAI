@@ -97,35 +97,31 @@ _KG_STABILIZE_JS = """
 </script>
 """
 
-# Convert string titles → DOM elements so vis.js renders them as HTML,
-# not as escaped plain text (vis.js newer versions treat string titles as text).
+# Convert string titles → DOM elements lazily on hover (showPopup event).
+# Eager conversion of all nodes/edges at once created thousands of DOM elements
+# synchronously, blocking the main thread and causing "Page Unresponsive".
+# Now we convert only the one hovered item, just-in-time.
 _KG_TOOLTIP_FIX_JS = """
 <script>
 (function() {
-  function _fixTooltips() {
-    if (typeof network === 'undefined' || !network.body) return;
-    var nUp = [];
-    network.body.data.nodes.get().forEach(function(n) {
-      if (n.title && typeof n.title === 'string') {
-        var d = document.createElement('div');
-        d.innerHTML = n.title;
-        nUp.push({ id: n.id, title: d });
-      }
-    });
-    if (nUp.length) network.body.data.nodes.update(nUp);
-    var eUp = [];
-    network.body.data.edges.get().forEach(function(e) {
-      if (e.title && typeof e.title === 'string') {
-        var d = document.createElement('div');
-        d.innerHTML = e.title;
-        eUp.push({ id: e.id, title: d });
-      }
-    });
-    if (eUp.length) network.body.data.edges.update(eUp);
-  }
-  _fixTooltips();
-  setTimeout(_fixTooltips, 300);
-  network.once('stabilizationIterationsDone', _fixTooltips);
+  var _fixed = {};
+  network.on('showPopup', function(id) {
+    if (_fixed[id]) return;
+    _fixed[id] = true;
+    var n = network.body.data.nodes.get(id);
+    if (n && typeof n.title === 'string') {
+      var d = document.createElement('div');
+      d.innerHTML = n.title;
+      network.body.data.nodes.update([{ id: id, title: d }]);
+      return;
+    }
+    var e = network.body.data.edges.get(id);
+    if (e && typeof e.title === 'string') {
+      var d = document.createElement('div');
+      d.innerHTML = e.title;
+      network.body.data.edges.update([{ id: id, title: d }]);
+    }
+  });
 })();
 </script>
 """
