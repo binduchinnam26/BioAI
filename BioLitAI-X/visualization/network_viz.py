@@ -890,6 +890,25 @@ def render_coauthorship_network(
         if freeze:
             net.toggle_physics(False)
         html = _pyvis_to_html(net, filtered.number_of_nodes())
+
+        # Randomize every node's starting position before physics runs.
+        # vis.js always seeds disconnected components in a circle regardless
+        # of improvedLayout. This script runs synchronously at </body> —
+        # after new vis.Network() but before stabilization's first setTimeout
+        # fires — so physics always starts from random scatter, producing
+        # organic asymmetric cluster shapes instead of rings.
+        _scatter_js = """<script>
+(function() {
+  var spread = 700;
+  var updates = network.body.data.nodes.getIds().map(function(id) {
+    return { id: id, x: (Math.random() - 0.5) * spread,
+                     y: (Math.random() - 0.5) * spread };
+  });
+  network.body.data.nodes.update(updates);
+})();
+</script>"""
+        html = html.replace("</body>", _scatter_js + "\n</body>")
+
         st.session_state[cache_key] = html
     else:
         html = st.session_state[cache_key]
