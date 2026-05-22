@@ -944,6 +944,84 @@ def render_coauthorship_network(
 </script>"""
         html = html.replace("</body>", _hover_js + "\n</body>")
 
+        # Label overlap avoidance: hide labels that overlap a larger neighbour;
+        # reveal the hidden label when the user hovers that node.
+        # Uses the same greedy largest-first algorithm as the keyword network.
+        # Timing: _STABILIZE_JS fires fit() up to 2500ms after stabilization,
+        # so _run() is deferred 3500ms to ensure final viewport is set.
+        _coauth_overlap_js = """<script>
+(function() {
+  var _origLabels = {};
+  var _hiddenSet  = new Set();
+  var CHAR_W = 0.55;
+  var PAD    = 4;
+
+  function _bbox(nodeId) {
+    var node = allNodes.get(nodeId);
+    if (!node) return null;
+    var lbl = _origLabels[nodeId];
+    if (!lbl) return null;
+    var fs    = (node.font && node.font.size) ? node.font.size : 20;
+    var scale = network.getScale();
+    var dp    = network.canvasToDOM(network.getPosition(nodeId));
+    var w     = lbl.length * fs * CHAR_W * scale;
+    var h     = fs * 1.3 * scale;
+    return { l: dp.x - w/2 - PAD, r: dp.x + w/2 + PAD,
+             t: dp.y - h/2 - PAD, b: dp.y + h/2 + PAD };
+  }
+
+  function _hit(a, b) {
+    return !(a.r < b.l || a.l > b.r || a.b < b.t || a.t > b.b);
+  }
+
+  function _run() {
+    allNodes.getIds().forEach(function(id) {
+      if (!(id in _origLabels)) _origLabels[id] = allNodes.get(id).label || '';
+    });
+    var sorted = allNodes.getIds().map(function(id) {
+      return { id: id, sz: allNodes.get(id).size || 10 };
+    }).sort(function(a, b) { return b.sz - a.sz; });
+
+    var kept = [], hidden = new Set(), updates = [];
+    sorted.forEach(function(item) {
+      var id = item.id, lbl = _origLabels[id];
+      if (!lbl) return;
+      var box = _bbox(id);
+      if (!box) return;
+      if (kept.some(function(k) { return _hit(box, k); })) {
+        hidden.add(id);
+        if (allNodes.get(id).label !== '') updates.push({ id: id, label: '' });
+      } else {
+        kept.push(box);
+        if (allNodes.get(id).label !== lbl) updates.push({ id: id, label: lbl });
+      }
+    });
+    _hiddenSet = hidden;
+    if (updates.length) allNodes.update(updates);
+  }
+
+  // Run after _STABILIZE_JS finishes its last fit() at ~2500ms
+  network.once('stabilizationIterationsDone', function() {
+    setTimeout(_run, 3500);
+  });
+
+  // Re-evaluate on zoom
+  var _zt = null;
+  network.on('zoom', function() { clearTimeout(_zt); _zt = setTimeout(_run, 200); });
+
+  // Reveal hidden label on hover; re-hide on blur
+  network.on('hoverNode', function(p) {
+    if (_hiddenSet.has(p.node) && _origLabels[p.node])
+      allNodes.update([{ id: p.node, label: _origLabels[p.node] }]);
+  });
+  network.on('blurNode', function(p) {
+    if (_hiddenSet.has(p.node))
+      allNodes.update([{ id: p.node, label: '' }]);
+  });
+})();
+</script>"""
+        html = html.replace("</body>", _coauth_overlap_js + "\n</body>")
+
         st.session_state[cache_key] = html
     else:
         html = st.session_state[cache_key]
