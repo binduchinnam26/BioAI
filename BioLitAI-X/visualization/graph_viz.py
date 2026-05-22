@@ -149,45 +149,46 @@ _KG_FIT_JS = """
         var el = document.getElementById('mynetwork');
         if (el && el.offsetWidth > 50 && el.offsetHeight > 50) {
           _done = true;
-          // Fit to main cluster: keep nodes within mean + 1.5*stddev of centroid
           var positions = network.getPositions();
           var ids = Object.keys(positions);
           if (ids.length > 0) {
-            // Centroid
-            var cx = 0, cy = 0;
-            ids.forEach(function(id) { cx += positions[id].x; cy += positions[id].y; });
-            cx /= ids.length; cy /= ids.length;
-            // Distances from centroid
+            // Step 1: compute centroid of all nodes
+            var cx0 = 0, cy0 = 0;
+            ids.forEach(function(id) { cx0 += positions[id].x; cy0 += positions[id].y; });
+            cx0 /= ids.length; cy0 /= ids.length;
+            // Step 2: distances from centroid
             var dists = ids.map(function(id) {
-              var dx = positions[id].x - cx, dy = positions[id].y - cy;
-              return { id: id, d: Math.sqrt(dx*dx + dy*dy) };
+              var dx = positions[id].x - cx0, dy = positions[id].y - cy0;
+              return { id: id, d: Math.sqrt(dx * dx + dy * dy) };
             });
-            // Mean + std of distances
+            // Step 3: keep nodes within mean + 1.5*std (drop far-flung isolated components)
             var mean = dists.reduce(function(s, x) { return s + x.d; }, 0) / dists.length;
-            var variance = dists.reduce(function(s, x) { return s + (x.d - mean) * (x.d - mean); }, 0) / dists.length;
-            var std = Math.sqrt(variance);
-            // Keep nodes within mean + 1.5 * std (cuts distant isolated components)
-            var threshold = mean + 1.5 * std;
-            var mainNodes = dists.filter(function(x) { return x.d <= threshold; }).map(function(x) { return x.id; });
-            if (mainNodes.length < 3) {
-              // Fallback: take closest 60%
+            var vari = dists.reduce(function(s, x) { return s + (x.d - mean) * (x.d - mean); }, 0) / dists.length;
+            var std = Math.sqrt(vari);
+            var thr = mean + 1.5 * std;
+            var core = dists.filter(function(x) { return x.d <= thr; });
+            if (core.length < 3) {
               dists.sort(function(a, b) { return a.d - b.d; });
-              mainNodes = dists.slice(0, Math.max(3, Math.ceil(dists.length * 0.6))).map(function(x) { return x.id; });
+              core = dists.slice(0, Math.max(3, Math.ceil(dists.length * 0.6)));
             }
-            network.fit({
-              nodes: mainNodes,
-              animation: { duration: 500, easingFunction: 'easeInOutQuad' }
+            // Step 4: compute tight bounding box of core cluster
+            var xs = core.map(function(x) { return positions[x.id].x; });
+            var ys = core.map(function(x) { return positions[x.id].y; });
+            var minX = Math.min.apply(null, xs), maxX = Math.max.apply(null, xs);
+            var minY = Math.min.apply(null, ys), maxY = Math.max.apply(null, ys);
+            var cx = (minX + maxX) / 2, cy = (minY + maxY) / 2;
+            var w = (maxX - minX) || 1, h = (maxY - minY) || 1;
+            // Step 5: scale so core fills ~78% of canvas, then move there directly
+            var canvasW = el.offsetWidth, canvasH = el.offsetHeight;
+            var scale = Math.min(canvasW * 0.78 / w, canvasH * 0.78 / h);
+            network.moveTo({
+              position: { x: cx, y: cy },
+              scale: scale,
+              animation: { duration: 600, easingFunction: 'easeInOutQuad' }
             });
           } else {
             network.fit({ animation: { duration: 500, easingFunction: 'easeInOutQuad' } });
           }
-          // Zoom in after fit settles
-          setTimeout(function() {
-            network.moveTo({
-              scale: network.getScale() * 1.8,
-              animation: { duration: 300, easingFunction: 'easeInOutQuad' }
-            });
-          }, 550);
         }
       }, ms);
     });
