@@ -952,7 +952,17 @@ def render_coauthorship_network(
         # reveal the hidden label when the user hovers that node.
         # _hiddenSet is exposed as window._coauthHiddenSet so the chosen.label
         # callback above can skip the 10x multiplier for revealed-hidden labels.
-        _coauth_overlap_js = """<script>
+        _coauth_overlap_js = """<style>
+/* Strip vis.js default tooltip container so only our blue card shows */
+.vis-tooltip {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  border-radius: 0 !important;
+}
+</style>
+<script>
 (function() {
   // Convert string node titles to DOM elements so vis.js renders them as
   // styled HTML cards instead of raw text (vis.js uses textContent for strings).
