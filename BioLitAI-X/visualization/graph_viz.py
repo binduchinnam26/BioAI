@@ -351,11 +351,6 @@ def render_knowledge_graph(
 
     with col_ctrl:
         st.markdown(
-            f'<div style="background:{COLOR_SURFACE_ELEVATED};border-radius:8px;'
-            f'padding:12px;min-height:600px;">',
-            unsafe_allow_html=True,
-        )
-        st.markdown(
             "<div style='font-size:11px;color:#9CA3AF;font-weight:600;"
             "margin-bottom:8px;'>ENTITY TYPES</div>",
             unsafe_allow_html=True,
@@ -448,7 +443,6 @@ def render_knowledge_graph(
         st.markdown("</div>", unsafe_allow_html=True)
 
         _render_entity_legend()
-        st.markdown("</div>", unsafe_allow_html=True)
 
     with col_graph:
         # Apply filters
