@@ -954,6 +954,17 @@ def render_coauthorship_network(
         # callback above can skip the 10x multiplier for revealed-hidden labels.
         _coauth_overlap_js = """<script>
 (function() {
+  // Convert string node titles to DOM elements so vis.js renders them as
+  // styled HTML cards instead of raw text (vis.js uses textContent for strings).
+  allNodes.getIds().forEach(function(id) {
+    var node = allNodes.get(id);
+    if (node && typeof node.title === 'string' && node.title.trim()) {
+      var el = document.createElement('div');
+      el.innerHTML = node.title;
+      allNodes.update([{ id: id, title: el }]);
+    }
+  });
+
   var _origLabels = {};
   window._coauthHiddenSet = new Set();
   var CHAR_W = 0.55;
