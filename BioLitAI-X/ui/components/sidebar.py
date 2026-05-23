@@ -49,31 +49,83 @@ def render_sidebar(session_state) -> str:
         )
 
         # ── Navigation ────────────────────────────────────────────
-        page_options = [
-            "🏠  Home",
-            "📊  Analysis",
-            "🕸️  Knowledge Graph",
-            "💡  Hypotheses",
-            "🔍  Semantic Search",
-            "💬  Chat",
+        _nav_pages = [
+            ("🏠", "Home"),
+            ("📊", "Analysis"),
+            ("🕸️", "Knowledge Graph"),
+            ("💡", "Hypotheses"),
+            ("🔍", "Semantic Search"),
+            ("💬", "Chat"),
         ]
-        # Map display label → canonical page name
-        _page_map = {
-            "🏠  Home":           "Home",
-            "📊  Analysis":       "Analysis",
-            "🕸️  Knowledge Graph": "Knowledge Graph",
-            "💡  Hypotheses":     "Hypotheses",
-            "🔍  Semantic Search": "Semantic Search",
-            "💬  Chat":           "Chat",
-        }
 
-        selected_display = st.radio(
-            "Navigate",
-            options=page_options,
-            label_visibility="collapsed",
-            key="sidebar_nav",
+        # Initialise selected page on first load
+        if "_sidebar_page" not in session_state:
+            session_state["_sidebar_page"] = "Home"
+        selected_page = session_state["_sidebar_page"]
+
+        # CSS: rounded-rectangle nav buttons + hover slide effect.
+        # Active page uses type="primary" (kind="primary" in HTML) so it
+        # can be styled independently without touching buttons elsewhere.
+        st.markdown(
+            """
+            <style>
+            /* ── inactive nav button ─────────────────────────────── */
+            section[data-testid="stSidebar"]
+              div[data-testid="stButton"] > button {
+                background : #0F172A !important;
+                color      : #9CA3AF !important;
+                border     : 1px solid #1F2937 !important;
+                border-radius : 10px !important;
+                padding    : 0.55rem 0.9rem !important;
+                font-size  : 0.875rem !important;
+                font-weight: 500 !important;
+                text-align : left !important;
+                width      : 100% !important;
+                margin-bottom : 3px !important;
+                box-shadow : none !important;
+                transition : background 0.18s ease,
+                             border-color 0.18s ease,
+                             color 0.18s ease,
+                             transform 0.15s ease !important;
+            }
+            section[data-testid="stSidebar"]
+              div[data-testid="stButton"] > button:hover {
+                background   : #1E293B !important;
+                border-color : #3B82F6 !important;
+                color        : #F9FAFB !important;
+                transform    : translateX(4px) !important;
+            }
+            /* ── active nav button (type="primary") ──────────────── */
+            section[data-testid="stSidebar"]
+              div[data-testid="stButton"] > button[kind="primary"] {
+                background   : #1C2539 !important;
+                border       : 1px solid #3B82F6 !important;
+                color        : #93C5FD !important;
+                font-weight  : 600 !important;
+                box-shadow   : inset 3px 0 0 0 #3B82F6 !important;
+            }
+            section[data-testid="stSidebar"]
+              div[data-testid="stButton"] > button[kind="primary"]:hover {
+                background   : #1E3A5F !important;
+                border-color : #60A5FA !important;
+                color        : #DBEAFE !important;
+                transform    : translateX(4px) !important;
+            }
+            </style>
+            """,
+            unsafe_allow_html=True,
         )
-        selected_page = _page_map.get(selected_display, "Home")
+
+        for _icon, _page in _nav_pages:
+            _btn_type = "primary" if selected_page == _page else "secondary"
+            if st.button(
+                f"{_icon}  {_page}",
+                key=f"_nav_{_page}",
+                use_container_width=True,
+                type=_btn_type,
+            ):
+                session_state["_sidebar_page"] = _page
+                st.rerun()
 
         st.markdown(
             '<hr style="border:none;border-top:1px solid #1F2937;margin:1rem 0;">',
@@ -240,4 +292,4 @@ def render_sidebar(session_state) -> str:
             unsafe_allow_html=True,
         )
 
-    return selected_page
+    return session_state.get("_sidebar_page", "Home")
