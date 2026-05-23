@@ -618,6 +618,7 @@ def _render_controls(
     show_search: bool = True,
     show_density: bool = True,
     show_freeze: bool = True,
+    show_png: bool = True,
 ) -> Tuple[str, float, float, Optional[List[int]], bool]:
     """
     Render the controls strip above a network graph.
@@ -636,7 +637,8 @@ def _render_controls(
         col_widths.append(1)
     if show_freeze:
         col_widths.append(1)
-    col_widths.append(1)           # PNG always shown
+    if show_png:
+        col_widths.append(1)       # PNG (optional)
 
     cols = st.columns(col_widths)
     ci = 0  # column index cursor
@@ -708,10 +710,11 @@ def _render_controls(
     else:
         freeze = False
 
-    with cols[ci]:
-        export_png = st.button("↗ PNG", key=f"{key_prefix}_export")
-        if export_png:
-            st.info("Right-click the graph → Save image as… to export PNG.")
+    if show_png:
+        with cols[ci]:
+            export_png = st.button("↗ PNG", key=f"{key_prefix}_export")
+            if export_png:
+                st.info("Right-click the graph → Save image as… to export PNG.")
 
     return search, float(min_link), float(min_size), selected_comms, freeze
 
@@ -880,6 +883,7 @@ def render_coauthorship_network(
         show_search=False,
         show_density=False,
         show_freeze=False,
+        show_png=False,
     )
 
     # Apply filters
