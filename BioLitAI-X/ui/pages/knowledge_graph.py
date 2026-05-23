@@ -17,26 +17,6 @@ def render_knowledge_graph_page(session_state):
         unsafe_allow_html=True,
     )
 
-    # Gap highlight toggle
-    kg = session_state.get("knowledge_graph")
-    gap_report = session_state.get("gap_report", [])
-
-    if gap_report:
-        highlight = st.checkbox(
-            f"Highlight {len(gap_report)} research gap nodes",
-            value=True,
-            key="kg_gap_highlight_toggle",
-            help=(
-                "When enabled, nodes involved in detected research gaps "
-                "are highlighted with a pulsing yellow border."
-            ),
-        )
-    else:
-        highlight = False
-
-    # Store toggle value in session state for the underlying renderer
-    session_state["kg_highlight_gaps"] = highlight
-
     render_knowledge_graph(session_state)
 
 
@@ -69,8 +49,6 @@ def render_knowledge_graph(session_state):
 
     # ── Page header ────────────────────────────────────────────────────────────
     st.markdown(
-        '<h2 style="font-size:1.4rem;font-weight:700;color:#F9FAFB;'
-        'margin-bottom:0.25rem;">Knowledge Graph</h2>'
         f'<p style="font-size:0.875rem;color:#9CA3AF;margin-bottom:1.25rem;">'
         f'{kg_graph.number_of_nodes():,} entities · '
         f'{kg_graph.number_of_edges():,} relationships</p>',

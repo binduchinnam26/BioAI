@@ -331,7 +331,6 @@ def render_knowledge_graph(
     """
     import streamlit as st
     st.markdown(
-        "### Biomedical Knowledge Graph\n"
         "<span style='color:#9CA3AF;font-size:13px;'>"
         "Node size = evidence strength &nbsp;|&nbsp; "
         "Color = entity type &nbsp;|&nbsp; "
