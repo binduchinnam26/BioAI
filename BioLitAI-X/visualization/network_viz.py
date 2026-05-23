@@ -892,7 +892,7 @@ def render_coauthorship_network(
 
         net = _build_pyvis_network(
             filtered, node_sizes, edge_widths, node_weights,
-            label_fn, tooltip_fn, _default_edge_tooltip,
+            label_fn, tooltip_fn, lambda u, v, d: "",
             network_type="coauthorship",
             node_opacity=0.78,
             font_size_boost=8,
