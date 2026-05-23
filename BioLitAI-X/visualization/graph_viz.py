@@ -404,13 +404,6 @@ def render_knowledge_graph(
             label_visibility="collapsed",
         )
 
-        entity_search = st.text_input(
-            "Search entities…",
-            key=f"{key_prefix}_entity_search",
-            placeholder="Search entities…",
-            label_visibility="collapsed",
-        )
-
         gap_highlight = st.checkbox(
             "Highlight Research Gaps",
             value=highlight_gaps,
@@ -426,8 +419,6 @@ def render_knowledge_graph(
         )
 
         st.markdown("<div style='margin-top:14px;'>", unsafe_allow_html=True)
-        if st.button("Export PNG", key=f"{key_prefix}_export_png"):
-            st.info("Right-click the graph → Save image as…")
         if st.button("Export JSON", key=f"{key_prefix}_export_json"):
             from pipeline.knowledge_graph import KnowledgeGraph
             kg_obj = KnowledgeGraph()
@@ -450,7 +441,7 @@ def render_knowledge_graph(
             graph,
             selected_etypes,
             selected_rels,
-            entity_search,
+            "",
             evidence_threshold,
         )
 
@@ -466,7 +457,7 @@ def render_knowledge_graph(
         cache_key = (
             f"_kg_html_{_VIZ_VERSION}_{_KG_VERSION}_{key_prefix}_"
             f"{','.join(sorted(selected_etypes))}_"
-            f"{','.join(sorted(selected_rels))}_{entity_search}_"
+            f"{','.join(sorted(selected_rels))}_"
             f"{evidence_threshold}_{gap_highlight}"
         )
         if cache_key not in st.session_state:
