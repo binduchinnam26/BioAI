@@ -1193,6 +1193,10 @@ def render_keyword_network(
 
     search, min_link, min_size, sel_comms, freeze = _render_controls(
         graph, key_prefix, f"_kw_html", lambda g: g,
+        show_search=False,
+        show_density=False,
+        show_freeze=False,
+        show_png=False,
     )
     filtered = _filter_graph(graph, min_link, min_size, sel_comms, search)
 
