@@ -635,7 +635,7 @@ def _build_kg_html(
             "minVelocity": 0.10,
             "stabilization": {
                 "enabled": True,
-                "iterations": 300,
+                "iterations": 1000,
                 "updateInterval": 10,
                 "fit": False,
             },
