@@ -615,26 +615,49 @@ def _render_controls(
     key_prefix: str,
     session_key_html: str,
     rebuild_fn,
+    show_search: bool = True,
+    show_density: bool = True,
+    show_freeze: bool = True,
 ) -> Tuple[str, float, float, Optional[List[int]], bool]:
     """
     Render the controls strip above a network graph.
     Returns (search_term, min_link, min_size, selected_communities, freeze).
+    show_search / show_density / show_freeze let callers hide specific controls;
+    hidden controls return their default values (empty string / False).
     """
     import streamlit as st
-    c1, c2, c3, c4, c5, c6, c7 = st.columns([3, 2, 2, 2, 1, 1, 1])
 
-    with c1:
-        search = st.text_input(
-            "Search nodes…",
-            key=f"{key_prefix}_search",
-            placeholder="Search nodes…",
-            label_visibility="collapsed",
-        )
+    # Build column widths dynamically based on which controls are visible.
+    col_widths = []
+    if show_search:
+        col_widths.append(3)   # search
+    col_widths.extend([2, 2, 2])  # min_link, min_size, communities always shown
+    if show_density:
+        col_widths.append(1)
+    if show_freeze:
+        col_widths.append(1)
+    col_widths.append(1)           # PNG always shown
+
+    cols = st.columns(col_widths)
+    ci = 0  # column index cursor
+
+    if show_search:
+        with cols[ci]:
+            search = st.text_input(
+                "Search nodes…",
+                key=f"{key_prefix}_search",
+                placeholder="Search nodes…",
+                label_visibility="collapsed",
+            )
+        ci += 1
+    else:
+        search = ""
+
     all_edge_weights = [
         graph[u][v].get("weight", 1) for u, v in graph.edges()
     ]
     edge_p90 = percentile(all_edge_weights, 90) if all_edge_weights else 1.0
-    with c2:
+    with cols[ci]:
         min_link = st.slider(
             "Min Link Strength",
             min_value=1,
@@ -642,11 +665,13 @@ def _render_controls(
             value=1,
             key=f"{key_prefix}_min_link",
         )
+    ci += 1
+
     all_node_weights = [
         graph.nodes[n].get("weight", 1) for n in graph.nodes()
     ]
     node_p75 = percentile(all_node_weights, 75) if all_node_weights else 1.0
-    with c3:
+    with cols[ci]:
         min_size = st.slider(
             "Min Node Size",
             min_value=1,
@@ -654,6 +679,7 @@ def _render_controls(
             value=1,
             key=f"{key_prefix}_min_size",
         )
+    ci += 1
 
     all_communities = sorted(
         set(
@@ -661,19 +687,28 @@ def _render_controls(
             for n in graph.nodes()
         )
     )
-    with c4:
+    with cols[ci]:
         selected_comms = st.multiselect(
             "Communities",
             options=all_communities,
             default=all_communities,
             key=f"{key_prefix}_comms",
         )
+    ci += 1
 
-    with c5:
-        density_on = st.checkbox("Density", key=f"{key_prefix}_density")
-    with c6:
-        freeze = st.checkbox("❄ Freeze", key=f"{key_prefix}_freeze")
-    with c7:
+    if show_density:
+        with cols[ci]:
+            density_on = st.checkbox("Density", key=f"{key_prefix}_density")
+        ci += 1
+
+    if show_freeze:
+        with cols[ci]:
+            freeze = st.checkbox("❄ Freeze", key=f"{key_prefix}_freeze")
+        ci += 1
+    else:
+        freeze = False
+
+    with cols[ci]:
         export_png = st.button("↗ PNG", key=f"{key_prefix}_export")
         if export_png:
             st.info("Right-click the graph → Save image as… to export PNG.")
@@ -842,6 +877,9 @@ def render_coauthorship_network(
         graph, key_prefix,
         f"_coauth_html",
         lambda g: g,
+        show_search=False,
+        show_density=False,
+        show_freeze=False,
     )
 
     # Apply filters
