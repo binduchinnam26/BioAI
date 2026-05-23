@@ -915,56 +915,37 @@ def render_coauthorship_network(
 
         html = _pyvis_to_html(net, filtered.number_of_nodes())
 
-        # Hover effect: enlarge node + increase label size on hover.
-        # vis.js chosen.node / chosen.label callbacks must be real JS
-        # functions (not JSON), so they are injected via setOptions after
-        # the network is initialised.
-        # chosen.label checks window._coauthHiddenSet: nodes whose label
-        # was hidden get no size multiplier (just shown at normal size);
-        # nodes whose label was already visible get the 10x enlargement.
-        _hover_js = """<script>
-(function() {
-  network.setOptions({
-    nodes: {
-      chosen: {
-        node: function(values, id, selected, hovering) {
-          if (hovering) {
-            values.size = values.size * 1.35;
-          }
-        },
-        label: function(values, id, selected, hovering) {
-          if (hovering) {
-            var isHidden = window._coauthHiddenSet && window._coauthHiddenSet.has(id);
-            values.size        = values.size * (isHidden ? 1.5 : 15.0);
-            values.color       = '#000000';
-            values.strokeWidth = 3;
-            values.strokeColor = '#ffffff';
-          }
-        }
-      }
-    }
-  });
-})();
-</script>"""
-        html = html.replace("</body>", _hover_js + "\n</body>")
-
-        # Label overlap avoidance: hide labels that overlap a larger neighbour;
-        # reveal the hidden label when the user hovers that node.
-        # _hiddenSet is exposed as window._coauthHiddenSet so the chosen.label
-        # callback above can skip the 10x multiplier for revealed-hidden labels.
+        # Label overlap avoidance + unified hover effect.
+        # All hover logic (node enlarge + label size) is driven by hoverNode /
+        # blurNode events with allNodes.update() so it works reliably for EVERY
+        # node — both those whose labels are visible and those whose labels were
+        # hidden by the overlap algorithm.  The old chosen-callback approach
+        # only fired during a vis.js re-render (triggered by allNodes.update),
+        # so visible-label nodes — which had no update on hover — never enlarged.
         _coauth_overlap_js = """<script>
 (function() {
   var _origLabels = {};
+  var _origSizes  = {};
+  var _origFonts  = {};
   window._coauthHiddenSet = new Set();
   var CHAR_W = 0.55;
   var PAD    = 4;
+
+  // Capture original node sizes and font objects once at load time.
+  allNodes.getIds().forEach(function(id) {
+    var node = allNodes.get(id);
+    _origSizes[id] = node.size || 10;
+    _origFonts[id] = node.font
+      ? Object.assign({}, node.font)
+      : { size: 20, color: '#000000', strokeWidth: 2, strokeColor: '#ffffff' };
+  });
 
   function _bbox(nodeId) {
     var node = allNodes.get(nodeId);
     if (!node) return null;
     var lbl = _origLabels[nodeId];
     if (!lbl) return null;
-    var fs    = (node.font && node.font.size) ? node.font.size : 20;
+    var fs    = _origFonts[nodeId] ? _origFonts[nodeId].size : 20;
     var scale = network.getScale();
     var dp    = network.canvasToDOM(network.getPosition(nodeId));
     var w     = lbl.length * fs * CHAR_W * scale;
@@ -1011,14 +992,37 @@ def render_coauthorship_network(
   var _zt = null;
   network.on('zoom', function() { clearTimeout(_zt); _zt = setTimeout(_run, 200); });
 
-  // Reveal hidden label on hover; re-hide on blur
+  // Hover: enlarge node + show/enlarge label for ALL nodes.
   network.on('hoverNode', function(p) {
-    if (window._coauthHiddenSet.has(p.node) && _origLabels[p.node])
-      allNodes.update([{ id: p.node, label: _origLabels[p.node] }]);
+    var id       = p.node;
+    var isHidden = window._coauthHiddenSet.has(id);
+    var origSize = _origSizes[id] || 10;
+    var origFont = _origFonts[id] || { size: 20 };
+    // Hidden-label nodes reveal at ~normal size (1.5x); visible-label nodes go 15x.
+    var hoverFont = Object.assign({}, origFont, {
+      size:        origFont.size * (isHidden ? 1.5 : 15.0),
+      color:       '#000000',
+      strokeWidth: 3,
+      strokeColor: '#ffffff'
+    });
+    var update = { id: id, size: origSize * 1.35, font: hoverFont };
+    if (isHidden && _origLabels[id]) {
+      update.label = _origLabels[id];
+    }
+    allNodes.update([update]);
   });
+
+  // Blur: restore node to original size/font; re-hide label if needed.
   network.on('blurNode', function(p) {
-    if (window._coauthHiddenSet.has(p.node))
-      allNodes.update([{ id: p.node, label: '' }]);
+    var id       = p.node;
+    var isHidden = window._coauthHiddenSet.has(id);
+    var origSize = _origSizes[id] || 10;
+    var origFont = _origFonts[id] || { size: 20 };
+    var update = { id: id, size: origSize, font: Object.assign({}, origFont) };
+    if (isHidden) {
+      update.label = '';
+    }
+    allNodes.update([update]);
   });
 })();
 </script>"""
