@@ -144,12 +144,11 @@ _GAP_HIGHLIGHT_JS = """
   var gapNodes = __GAP_NODES_JSON__;
   if (!gapNodes || gapNodes.length === 0) return;
   network.on('afterDrawing', function(ctx) {
+    var now = Date.now();
     gapNodes.forEach(function(nodeId) {
       if (!network.body.nodes[nodeId]) return;
       var pos = network.getPositions([nodeId])[nodeId];
-      var canvasPos = network.canvasToDOM(pos);
       // Draw pulsing yellow ring via canvas arc
-      var now = Date.now();
       var phase = (Math.sin(now / 400) + 1) / 2;
       ctx.save();
       ctx.strokeStyle = 'rgba(251,191,36,' + (0.4 + 0.6 * phase) + ')';
@@ -160,8 +159,15 @@ _GAP_HIGHLIGHT_JS = """
       ctx.stroke();
       ctx.restore();
     });
-    requestAnimationFrame(function() { network.redraw(); });
+    // No requestAnimationFrame here — animation is driven by the
+    // setInterval below at ~10 fps.  The previous pattern of calling
+    // requestAnimationFrame(network.redraw) inside afterDrawing created
+    // an infinite 60 fps redraw loop that blocked the main thread on
+    // large graphs and triggered the browser "Page Unresponsive" dialog.
   });
+  // Drive the pulse at ~10 fps — smooth enough to be visible, cheap
+  // enough not to block the UI.
+  setInterval(function() { network.redraw(); }, 100);
 })();
 </script>
 """
@@ -173,8 +179,11 @@ var allEdges = network.body.data.edges;
 
 network.on('click', function(params) {
   if (params.nodes.length === 0) {
-    allNodes.getIds().forEach(function(id) { allNodes.update([{id:id,opacity:1.0}]); });
-    allEdges.getIds().forEach(function(id) { allEdges.update([{id:id,opacity:1.0}]); });
+    // Batch into a single DataSet.update() call — calling update() once
+    // per node inside forEach caused N separate redraws and froze the tab
+    // on large graphs.
+    allNodes.update(allNodes.getIds().map(function(id) { return {id:id,opacity:1.0}; }));
+    allEdges.update(allEdges.getIds().map(function(id) { return {id:id,opacity:1.0}; }));
     return;
   }
   var clickedId = params.nodes[0];
