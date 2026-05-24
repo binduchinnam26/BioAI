@@ -29,7 +29,8 @@ footer         { visibility: hidden; }
 [data-testid="stStatusWidget"]   { display: none !important; }
 [data-testid="stHeader"]         { background: transparent !important;
                                    height: 0 !important;
-                                   min-height: 0 !important; }
+                                   min-height: 0 !important;
+                                   overflow: visible !important; }
 
 /* Sidebar expand/collapse arrow — force visible across all versions */
 [data-testid="collapsedControl"],
