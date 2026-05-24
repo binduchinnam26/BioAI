@@ -32,13 +32,18 @@ footer         { visibility: hidden; }
                                    min-height: 0 !important;
                                    overflow: visible !important; }
 
-/* Sidebar expand/collapse arrow — force visible across all versions */
+/* Sidebar expand/collapse arrow — fixed position so parent height:0
+   and any ancestor overflow:hidden cannot clip or hide it.           */
 [data-testid="collapsedControl"],
 [data-testid="stSidebarCollapsedControl"] {
-  visibility: visible !important;
-  display: flex    !important;
-  opacity: 1       !important;
-  pointer-events: auto !important;
+  position       : fixed        !important;
+  top            : 0.5rem       !important;
+  left           : 0.5rem       !important;
+  z-index        : 999999       !important;
+  visibility     : visible      !important;
+  display        : flex         !important;
+  opacity        : 1            !important;
+  pointer-events : auto         !important;
 }
 
 /* ── App container ───────────────────────────────────────── */
