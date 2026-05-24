@@ -24,27 +24,15 @@ footer    { visibility: hidden; }
 [data-testid="stDecoration"]     { display: none !important; }
 [data-testid="stStatusWidget"]   { display: none !important; }
 
-/* Collapse the header to 0 height but allow its children to overflow,
-   so the sidebar toggle button is still rendered and clickable at the
-   top of the page without occupying a visible header bar.             */
+/* Header: natural height so the sidebar toggle renders correctly.
+   Styled dark to match the app theme.                              */
 [data-testid="stHeader"] {
-  height     : 0          !important;
-  min-height : 0          !important;
-  padding    : 0          !important;
-  background : transparent !important;
-  overflow   : visible    !important;
+  background-color : #0A0F1E !important;
 }
 
-/* Keep the toolbar transparent and overflowing — don't clip it.
-   This lets the sidebar toggle (>>) sit naturally at the top-left. */
-[data-testid="stToolbar"] {
-  background : transparent !important;
-  overflow   : visible    !important;
-}
-
-/* Hide the Deploy button and any other right-side toolbar actions.
-   Only the sidebar toggle on the left should remain visible.       */
-[data-testid="stToolbarActions"] { display: none !important; }
+/* Toolbar: transparent background, hide only the Deploy/actions on the right. */
+[data-testid="stToolbar"]        { background-color : transparent !important; }
+[data-testid="stToolbarActions"] { display          : none        !important; }
 
 /* ── App container ───────────────────────────────────────── */
 .stApp {
