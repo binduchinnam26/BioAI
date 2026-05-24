@@ -81,7 +81,7 @@ _PULSE_CSS = """
 }
 /* Center the PyVis loading bar — override hard-coded top:400px */
 #loadingBar {
-  display: flex !important;
+  display: flex;
   align-items: center !important;
   justify-content: center !important;
 }

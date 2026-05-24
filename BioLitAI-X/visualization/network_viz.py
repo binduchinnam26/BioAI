@@ -598,7 +598,7 @@ def _post_process_html(html: str, node_count: int = 0, network_type: str = "defa
     # Centre the PyVis loading bar — override hard-coded top:400px with flexbox
     _loading_bar_css = (
         "<style>"
-        "#loadingBar{display:flex!important;align-items:center!important;"
+        "#loadingBar{display:flex;align-items:center!important;"
         "justify-content:center!important;}"
         "div.outerBorder{position:relative!important;top:0!important;margin:0!important;}"
         "</style>"
