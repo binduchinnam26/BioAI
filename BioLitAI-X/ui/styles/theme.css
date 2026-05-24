@@ -21,22 +21,30 @@ body,
 #MainMenu { visibility: hidden; }
 footer    { visibility: hidden; }
 
-/* Hide only the decorative bar and status indicator.
-   Do NOT touch stHeader height or stToolbar — the sidebar
-   collapse/expand toggle lives there and must render naturally. */
-[data-testid="stDecoration"]   { display: none !important; }
-[data-testid="stStatusWidget"] { display: none !important; }
+[data-testid="stDecoration"]     { display: none !important; }
+[data-testid="stStatusWidget"]   { display: none !important; }
 
-/* Style the header bar to match our dark theme.
-   Natural height is preserved so the sidebar toggle button is
-   visible and clickable without any CSS workarounds. */
+/* Collapse the header to 0 height but allow its children to overflow,
+   so the sidebar toggle button is still rendered and clickable at the
+   top of the page without occupying a visible header bar.             */
 [data-testid="stHeader"] {
-  background-color : #0A0F1E      !important;
-  border-bottom    : 1px solid #1F2937 !important;
+  height     : 0          !important;
+  min-height : 0          !important;
+  padding    : 0          !important;
+  background : transparent !important;
+  overflow   : visible    !important;
 }
+
+/* Keep the toolbar transparent and overflowing — don't clip it.
+   This lets the sidebar toggle (>>) sit naturally at the top-left. */
 [data-testid="stToolbar"] {
-  background-color : transparent  !important;
+  background : transparent !important;
+  overflow   : visible    !important;
 }
+
+/* Hide the Deploy button and any other right-side toolbar actions.
+   Only the sidebar toggle on the left should remain visible.       */
+[data-testid="stToolbarActions"] { display: none !important; }
 
 /* ── App container ───────────────────────────────────────── */
 .stApp {
