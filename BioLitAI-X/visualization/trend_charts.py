@@ -124,15 +124,13 @@ def render_publication_trend(papers_df):
             tickformat="d",
         ),
         "yaxis": dict(
-            title="Papers / Year",
-            titlefont=dict(color="#3B82F6"),
+            title=dict(text="Papers / Year", font=dict(color="#3B82F6")),
             tickfont=dict(color="#3B82F6"),
             gridcolor="#1F2937",
             zerolinecolor="#1F2937",
         ),
         "yaxis2": dict(
-            title="Cumulative",
-            titlefont=dict(color="#10B981"),
+            title=dict(text="Cumulative", font=dict(color="#10B981")),
             tickfont=dict(color="#10B981"),
             overlaying="y",
             side="right",
