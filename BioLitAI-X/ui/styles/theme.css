@@ -31,8 +31,12 @@ footer    { visibility: hidden; }
 }
 
 /* Toolbar: transparent background, hide only the Deploy/actions on the right. */
-[data-testid="stToolbar"]        { background-color : transparent !important; }
-[data-testid="stToolbarActions"] { display          : none        !important; }
+[data-testid="stToolbar"]           { background-color : transparent !important; }
+[data-testid="stToolbarActions"]    { display          : none        !important; }
+[data-testid="stAppDeployButton"]   { display          : none        !important; }
+[data-testid="stDeployButton"]      { display          : none        !important; }
+/* Catch-all: hide the right-side toolbar group (deploy lives there) */
+[data-testid="stToolbar"] > div:last-child { display : none !important; }
 
 /* ── App container ───────────────────────────────────────── */
 .stApp {
@@ -47,17 +51,14 @@ footer    { visibility: hidden; }
 }
 
 /* ── Sidebar ─────────────────────────────────────────────── */
-/* Pin the sidebar open — Streamlit 1.32 collapses it with
-   translateX(-110%); overriding transform keeps it always visible. */
+/* Only style appearance — do NOT force width/display/visibility.
+   Forcing min-width/width keeps 240 px of blank space on the left
+   when the sidebar is collapsed because CSS transform doesn't
+   remove elements from the document flow.                         */
 section[data-testid="stSidebar"],
 [data-testid="stSidebar"] {
-  display:    block      !important;
-  visibility: visible    !important;
-  opacity:    1          !important;
-  min-width:  240px      !important;
-  width:      240px      !important;
-  background-color: #111827;
-  border-right: 1px solid #1F2937;
+  background-color: #111827      !important;
+  border-right:     1px solid #1F2937 !important;
 }
 
 [data-testid="stSidebar"] .block-container {
