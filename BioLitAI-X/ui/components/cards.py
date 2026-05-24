@@ -4,6 +4,28 @@ Streamlit is imported inside each function per project conventions.
 """
 import re
 
+# Common English stop words to exclude from highlight matching
+_STOP_WORDS = {
+    "the", "a", "an", "and", "or", "but", "in", "on", "at", "to", "for",
+    "of", "with", "by", "from", "is", "are", "was", "were", "be", "been",
+    "being", "have", "has", "had", "do", "does", "did", "will", "would",
+    "shall", "should", "may", "might", "must", "can", "could", "not",
+    "this", "that", "these", "those", "its", "as", "if", "into",
+    "through", "during", "before", "after", "above", "below", "between",
+    "each", "their", "there", "then", "than", "so", "also", "both",
+    "more", "most", "other", "such", "nor", "too", "very", "just",
+    "because", "while", "although", "which", "who", "what", "when",
+    "where", "how", "all", "any", "few", "some", "only", "same",
+    "our", "your", "they", "them", "we", "you", "he", "she", "it",
+    "his", "her", "him", "me", "my", "us", "leading", "using", "used",
+    "show", "shown", "including", "associated", "results", "study",
+    "studies", "found", "based", "provide", "provided", "however",
+    "whereas", "within", "without", "among", "across", "upon", "well",
+    "thus", "therefore", "although", "further", "here", "new", "two",
+    "one", "three", "many", "often", "particularly", "commonly",
+    "characterized", "manifest", "manifested", "related", "including",
+}
+
 
 def _confidence_badge(confidence_score: float) -> str:
     """Return an HTML badge string based on a 0-1 confidence score."""
@@ -24,11 +46,33 @@ def _confidence_badge(confidence_score: float) -> str:
     )
 
 
-def _highlight_text(text: str, query: str) -> str:
-    """Wrap occurrences of query terms in a highlight span."""
+def _highlight_text(text: str, query: str, kg_entities: set = None) -> str:
+    """
+    Wrap occurrences of biomedical query terms in a highlight span.
+
+    Filtering priority (Sub-approach A):
+    1. Remove tokens shorter than 4 characters.
+    2. Remove English stop words.
+    3. If kg_entities is provided, only keep tokens that appear in the
+       knowledge-graph entity word set — so only genuine biomedical terms
+       from the corpus are highlighted.
+    """
     if not query or not text:
         return text
-    tokens = [t.strip() for t in re.split(r'\s+', query) if len(t.strip()) >= 3]
+
+    # Tokenise query; require minimum length of 4 chars
+    raw_tokens = [t.strip() for t in re.split(r'\s+', query) if len(t.strip()) >= 4]
+
+    # Remove stop words (case-insensitive)
+    tokens = [t for t in raw_tokens if t.lower() not in _STOP_WORDS]
+
+    # If KG entity words available, keep only tokens found in the KG
+    if kg_entities:
+        tokens = [t for t in tokens if t.lower() in kg_entities]
+
+    if not tokens:
+        return text
+
     result = text
     for token in tokens:
         pattern = re.compile(re.escape(token), re.IGNORECASE)
@@ -181,6 +225,7 @@ def render_paper_card(
     paper: dict,
     similarity_score: float = None,
     query_highlight: str = None,
+    kg_entities: set = None,
 ):
     """
     Render a search result card for a single paper.
@@ -219,7 +264,7 @@ def render_paper_card(
     if len(abstract) > 300:
         excerpt += "…"
     if query_highlight:
-        excerpt = _highlight_text(excerpt, query_highlight)
+        excerpt = _highlight_text(excerpt, query_highlight, kg_entities)
 
     # Title with PubMed link
     if pmid:

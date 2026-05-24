@@ -129,6 +129,26 @@ def _run_search(papers_df, embedder, query: str, top_k: int):
     _display_results(results, query)
 
 
+def _build_kg_entity_words(session_state) -> set:
+    """
+    Extract individual words from all knowledge-graph node names.
+    Returns a lower-cased set of biomedical term words (≥4 chars) that can
+    be used to filter query tokens before highlighting.
+    """
+    import re as _re
+    kg = session_state.get("knowledge_graph")
+    entity_words = set()
+    if kg is not None and hasattr(kg, "nodes"):
+        for node, data in kg.nodes(data=True):
+            name = data.get("name", str(node))
+            # Split on whitespace, hyphens, slashes to get individual words
+            for word in _re.split(r'[\s\-/]+', name):
+                word = word.strip().lower()
+                if len(word) >= 4:
+                    entity_words.add(word)
+    return entity_words
+
+
 def _display_results(results: list, query: str):
     import streamlit as st
 
@@ -142,6 +162,9 @@ def _display_results(results: list, query: str):
         unsafe_allow_html=True,
     )
 
+    # Build KG entity word set for smart biomedical-only highlighting
+    kg_entities = _build_kg_entity_words(st.session_state)
+
     try:
         from ui.components.cards import render_paper_card
         for hit in results:
@@ -149,6 +172,7 @@ def _display_results(results: list, query: str):
                 paper=hit["paper"],
                 similarity_score=hit.get("score"),
                 query_highlight=query,
+                kg_entities=kg_entities if kg_entities else None,
             )
     except Exception:
         # Fallback plain rendering
