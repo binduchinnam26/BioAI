@@ -103,12 +103,12 @@ def render_publication_trend(papers_df):
         )
     )
 
-    fig.update_layout(
+    fig.update_layout(**{
         **_DARK_LAYOUT,
-        height=420,
-        hovermode="x unified",
-        showlegend=True,
-        legend=dict(
+        "height": 420,
+        "hovermode": "x unified",
+        "showlegend": True,
+        "legend": dict(
             orientation="h",
             yanchor="bottom",
             y=1.02,
@@ -117,30 +117,29 @@ def render_publication_trend(papers_df):
             bgcolor="rgba(0,0,0,0)",
             font=dict(color=COLOR_TEXT_SECONDARY, size=12),
         ),
-        xaxis=dict(
+        # Override _DARK_LAYOUT's xaxis/yaxis with chart-specific settings
+        "xaxis": dict(
             gridcolor="#1F2937",
             zerolinecolor="#1F2937",
             tickformat="d",
         ),
-        # Left Y-axis: annual counts
-        yaxis=dict(
+        "yaxis": dict(
             title="Papers / Year",
             titlefont=dict(color="#3B82F6"),
             tickfont=dict(color="#3B82F6"),
             gridcolor="#1F2937",
             zerolinecolor="#1F2937",
         ),
-        # Right Y-axis: cumulative
-        yaxis2=dict(
+        "yaxis2": dict(
             title="Cumulative",
             titlefont=dict(color="#10B981"),
             tickfont=dict(color="#10B981"),
             overlaying="y",
             side="right",
-            gridcolor="rgba(0,0,0,0)",  # no grid for right axis (avoids clutter)
+            gridcolor="rgba(0,0,0,0)",
             zerolinecolor="#1F2937",
         ),
-    )
+    })
 
     st.plotly_chart(fig, use_container_width=True, config=_NO_MODEBAR)
 
