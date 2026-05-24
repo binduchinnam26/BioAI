@@ -7,6 +7,10 @@ Run with:
 import sys
 from pathlib import Path
 
+# ── Load environment variables from .env file ──────────────────────────────
+from dotenv import load_dotenv
+load_dotenv()
+
 # Ensure the project root is on sys.path regardless of launch CWD.
 _ROOT = Path(__file__).parent.resolve()
 if str(_ROOT) not in sys.path:
