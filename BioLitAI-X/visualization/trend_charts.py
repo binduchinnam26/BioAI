@@ -36,8 +36,9 @@ _KW_TYPE_COLORS = {
 
 def render_publication_trend(papers_df):
     """
-    Render a dual-panel publication trend chart: bars for annual counts and
-    a spline line for cumulative totals. Shared x-axis via subplot layout.
+    Render a combined publication trend chart: bars for annual counts on the
+    left Y-axis and a spline line for cumulative totals on the right Y-axis,
+    both sharing the same X-axis in one panel.
     """
     import streamlit as st
 
@@ -65,16 +66,9 @@ def render_publication_trend(papers_df):
     year_counts["pub_year"] = year_counts["pub_year"].astype(int)
     year_counts["cumulative"] = year_counts["count"].cumsum()
 
-    fig = make_subplots(
-        rows=2,
-        cols=1,
-        shared_xaxes=True,
-        row_heights=[0.65, 0.35],
-        vertical_spacing=0.06,
-        subplot_titles=("Annual Publications", "Cumulative Publications"),
-    )
+    fig = go.Figure()
 
-    # Bar trace — annual counts
+    # Bar trace — annual counts (left Y-axis)
     fig.add_trace(
         go.Bar(
             x=year_counts["pub_year"],
@@ -84,15 +78,15 @@ def render_publication_trend(papers_df):
             marker_line_color="#1D4ED8",
             marker_line_width=0.5,
             opacity=0.85,
+            yaxis="y1",
             hovertemplate=(
                 "<b>Year:</b> %{x}<br>"
                 "<b>Publications:</b> %{y:,}<extra></extra>"
             ),
-        ),
-        row=1, col=1,
+        )
     )
 
-    # Line trace — cumulative (spline)
+    # Line trace — cumulative (right Y-axis, spline)
     fig.add_trace(
         go.Scatter(
             x=year_counts["pub_year"],
@@ -100,22 +94,21 @@ def render_publication_trend(papers_df):
             name="Cumulative",
             mode="lines+markers",
             line=dict(color="#10B981", shape="spline", smoothing=1.3, width=2.5),
-            marker=dict(size=5, color="#10B981"),
-            fill="tozeroy",
-            fillcolor="rgba(16,185,129,0.08)",
+            marker=dict(size=6, color="#10B981"),
+            yaxis="y2",
             hovertemplate=(
                 "<b>Year:</b> %{x}<br>"
                 "<b>Cumulative:</b> %{y:,}<extra></extra>"
             ),
-        ),
-        row=2, col=1,
+        )
     )
 
-    layout = {
+    fig.update_layout(
         **_DARK_LAYOUT,
-        "height": 480,
-        "showlegend": True,
-        "legend": dict(
+        height=420,
+        hovermode="x unified",
+        showlegend=True,
+        legend=dict(
             orientation="h",
             yanchor="bottom",
             y=1.02,
@@ -124,19 +117,30 @@ def render_publication_trend(papers_df):
             bgcolor="rgba(0,0,0,0)",
             font=dict(color=COLOR_TEXT_SECONDARY, size=12),
         ),
-        "hovermode": "x unified",
-        "xaxis2": dict(
+        xaxis=dict(
             gridcolor="#1F2937",
             zerolinecolor="#1F2937",
             tickformat="d",
         ),
-        "yaxis2": dict(gridcolor="#1F2937", zerolinecolor="#1F2937"),
-    }
-    fig.update_layout(**layout)
-
-    # Style subplot titles
-    for ann in fig.layout.annotations:
-        ann.update(font=dict(color=COLOR_TEXT_SECONDARY, size=12))
+        # Left Y-axis: annual counts
+        yaxis=dict(
+            title="Papers / Year",
+            titlefont=dict(color="#3B82F6"),
+            tickfont=dict(color="#3B82F6"),
+            gridcolor="#1F2937",
+            zerolinecolor="#1F2937",
+        ),
+        # Right Y-axis: cumulative
+        yaxis2=dict(
+            title="Cumulative",
+            titlefont=dict(color="#10B981"),
+            tickfont=dict(color="#10B981"),
+            overlaying="y",
+            side="right",
+            gridcolor="rgba(0,0,0,0)",  # no grid for right axis (avoids clutter)
+            zerolinecolor="#1F2937",
+        ),
+    )
 
     st.plotly_chart(fig, use_container_width=True, config=_NO_MODEBAR)
 
