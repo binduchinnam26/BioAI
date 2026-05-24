@@ -108,6 +108,36 @@ def _run_search(papers_df, embedder, query: str, top_k: int):
         st.info("No results found. Try rephrasing your query.")
         return
 
+    # ── Relevance gate ────────────────────────────────────────────────────────
+    # Cosine similarity on L2-normalised vectors: 1.0 = identical, 0.0 = orthogonal.
+    # If the BEST match in the entire corpus scores below 0.50, the query topic
+    # is not represented in this dataset — show a clear "not relevant" message
+    # instead of misleading low-confidence results.
+    _RELEVANCE_THRESHOLD = 0.50
+    top_score = max((h.get("score", 0.0) for h in hits), default=0.0)
+    if top_score < _RELEVANCE_THRESHOLD:
+        st.markdown(
+            f"""
+            <div style="text-align:center;padding:60px 20px;">
+              <div style="font-size:2.5rem;margin-bottom:12px;">🔭</div>
+              <h3 style="color:#F9FAFB;margin-bottom:8px;">Topic Not Found in Corpus</h3>
+              <p style="color:#9CA3AF;max-width:480px;margin:0 auto 16px auto;line-height:1.6;">
+                The current corpus does not contain papers related to
+                <b style="color:#3B82F6;">"{query[:80]}{'…' if len(query) > 80 else ''}"</b>.
+                The highest similarity score across all {len(papers_df):,} papers
+                was <b style="color:#F59E0B;">{int(top_score * 100)}%</b>
+                — below the relevance threshold of {int(_RELEVANCE_THRESHOLD * 100)}%.
+              </p>
+              <p style="color:#6B7280;font-size:0.82rem;max-width:420px;margin:0 auto;">
+                Try searching for topics related to your active query, or run a new
+                pipeline query on the <b>Home</b> page to load a different corpus.
+              </p>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+        return
+
     # Map pmid → paper dict
     pmid_to_paper = {str(row.get("pmid", "")): row.to_dict() for _, row in papers_df.iterrows()}
 
