@@ -21,55 +21,21 @@ body,
 #MainMenu { visibility: hidden; }
 footer    { visibility: hidden; }
 
-/* IMPORTANT: Use visibility:hidden (NOT display:none) for stToolbar and
-   stDecoration. display:none on a parent completely removes ALL descendants
-   from rendering — no child CSS can override it. visibility:hidden keeps
-   elements in the DOM so a child can still override with visibility:visible.
-   The collapsed-control button may be a descendant of stToolbar. */
-[data-testid="stToolbar"]      { visibility : hidden   !important;
-                                  height     : 0        !important;
-                                  min-height : 0        !important;
-                                  padding    : 0        !important;
-                                  overflow   : hidden   !important; }
-[data-testid="stDecoration"]   { visibility : hidden   !important;
-                                  height     : 0        !important;
-                                  min-height : 0        !important;
-                                  padding    : 0        !important;
-                                  overflow   : hidden   !important; }
-[data-testid="stStatusWidget"] { display    : none     !important; }
-[data-testid="stHeader"]       { background : transparent !important;
-                                  height     : 0        !important;
-                                  min-height : 0        !important;
-                                  overflow   : visible  !important; }
+/* Hide only the decorative bar and status indicator.
+   Do NOT touch stHeader height or stToolbar — the sidebar
+   collapse/expand toggle lives there and must render naturally. */
+[data-testid="stDecoration"]   { display: none !important; }
+[data-testid="stStatusWidget"] { display: none !important; }
 
-/* Sidebar expand button — position:fixed escapes all parent clipping;
-   visibility:visible overrides the parent's visibility:hidden.        */
-[data-testid="collapsedControl"],
-[data-testid="stSidebarCollapsedControl"] {
-  position       : fixed   !important;
-  top            : 0.5rem  !important;
-  left           : 0.5rem  !important;
-  z-index        : 999999  !important;
-  visibility     : visible !important;
-  display        : flex    !important;
-  opacity        : 1       !important;
-  pointer-events : auto    !important;
+/* Style the header bar to match our dark theme.
+   Natural height is preserved so the sidebar toggle button is
+   visible and clickable without any CSS workarounds. */
+[data-testid="stHeader"] {
+  background-color : #0A0F1E      !important;
+  border-bottom    : 1px solid #1F2937 !important;
 }
-
-/* Make sure the button and its icon are visible on our dark background */
-[data-testid="collapsedControl"] button,
-[data-testid="stSidebarCollapsedControl"] button {
-  background-color : #1C2539  !important;
-  color            : #F9FAFB  !important;
-  border           : 1px solid #374151 !important;
-  border-radius    : 6px      !important;
-  visibility       : visible  !important;
-}
-[data-testid="collapsedControl"] svg,
-[data-testid="stSidebarCollapsedControl"] svg {
-  fill       : #F9FAFB !important;
-  color      : #F9FAFB !important;
-  visibility : visible !important;
+[data-testid="stToolbar"] {
+  background-color : transparent  !important;
 }
 
 /* ── App container ───────────────────────────────────────── */
