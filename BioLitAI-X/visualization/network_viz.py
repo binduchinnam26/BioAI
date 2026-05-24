@@ -1017,14 +1017,18 @@ def render_coauthorship_network(
 (function() {
   // Convert string node titles to DOM elements so vis.js renders them as
   // styled HTML cards instead of raw text (vis.js uses textContent for strings).
+  // Collect all updates first, then apply in ONE batch to avoid firing
+  // DataSet callbacks hundreds of times synchronously (which blocks the UI thread).
+  var _titleUpdates = [];
   allNodes.getIds().forEach(function(id) {
     var node = allNodes.get(id);
     if (node && typeof node.title === 'string' && node.title.trim()) {
       var el = document.createElement('div');
       el.innerHTML = node.title;
-      allNodes.update([{ id: id, title: el }]);
+      _titleUpdates.push({ id: id, title: el });
     }
   });
+  if (_titleUpdates.length) allNodes.update(_titleUpdates);
 
   var _origLabels = {};
   window._coauthHiddenSet = new Set();
