@@ -595,9 +595,18 @@ def _post_process_html(html: str, node_count: int = 0, network_type: str = "defa
         html,
         flags=re.DOTALL,
     )
+    # Centre the PyVis loading bar — override hard-coded top:400px with flexbox
+    _loading_bar_css = (
+        "<style>"
+        "#loadingBar{display:flex!important;align-items:center!important;"
+        "justify-content:center!important;}"
+        "div.outerBorder{position:relative!important;top:0!important;margin:0!important;}"
+        "</style>"
+    )
     overlap_js = _LABEL_OVERLAP_JS if network_type == "keyword" else ""
     html = html.replace(
-        "</body>", _STABILIZE_JS + _HIGHLIGHT_JS + _CONTROLS_JS + overlap_js + "</body>"
+        "</body>",
+        _loading_bar_css + _STABILIZE_JS + _HIGHLIGHT_JS + _CONTROLS_JS + overlap_js + "</body>",
     )
     return html
 
