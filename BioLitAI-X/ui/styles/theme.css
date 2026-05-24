@@ -35,8 +35,6 @@ footer    { visibility: hidden; }
 [data-testid="stToolbarActions"]    { display          : none        !important; }
 [data-testid="stAppDeployButton"]   { display          : none        !important; }
 [data-testid="stDeployButton"]      { display          : none        !important; }
-/* Catch-all: hide the right-side toolbar group (deploy lives there) */
-[data-testid="stToolbar"] > div:last-child { display : none !important; }
 
 /* ── App container ───────────────────────────────────────── */
 .stApp {
