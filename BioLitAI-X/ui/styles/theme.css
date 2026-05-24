@@ -22,7 +22,6 @@ body,
 footer    { visibility: hidden; }
 
 [data-testid="stDecoration"]     { display: none !important; }
-[data-testid="stStatusWidget"]   { display: none !important; }
 
 /* Header: natural height so the sidebar toggle renders correctly.
    Styled dark to match the app theme.                              */
@@ -30,9 +29,8 @@ footer    { visibility: hidden; }
   background-color : #0A0F1E !important;
 }
 
-/* Toolbar: transparent background, hide only the Deploy/actions on the right. */
+/* Toolbar: transparent background, hide only the Deploy button. */
 [data-testid="stToolbar"]           { background-color : transparent !important; }
-[data-testid="stToolbarActions"]    { display          : none        !important; }
 [data-testid="stAppDeployButton"]   { display          : none        !important; }
 [data-testid="stDeployButton"]      { display          : none        !important; }
 
