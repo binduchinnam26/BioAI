@@ -22,17 +22,17 @@ from typing import Any, Dict, List, Optional, Tuple
 logger = logging.getLogger(__name__)
 
 # ── Free-tier constants ────────────────────────────────────────────────────────
-# gemini-1.5-flash free tier: 15 RPM  →  1 call / 4 s is safe
-# gemini-1.5-pro   free tier:  2 RPM  →  1 call / 32 s is safe
-_FLASH_DELAY = 6        # seconds between Flash calls (free tier: ~10 RPM)
+# gemini-2.0-flash-lite free tier: 30 RPM  →  1 call / 4 s is safe
+# gemini-1.5-pro         free tier:  2 RPM  →  1 call / 32 s is safe
+_FLASH_DELAY = 8        # seconds between Flash calls (conservative: ~7.5 RPM)
 _PRO_DELAY   = 32       # seconds between Pro calls
 _MAX_RETRIES = 3        # network / transient errors
-_QUOTA_BACKOFF_BASE = 60  # seconds; doubles on each quota retry
+_QUOTA_BACKOFF_BASE = 65  # seconds; doubles on each quota retry (>60s to clear RPM window)
 _TOP_GAPS_DEFAULT  = 5    # how many gaps to process per run (free-tier safe)
 
 # ── Model selection ────────────────────────────────────────────────────────────
-# gemini-1.5-flash is deprecated; use gemini-2.5-flash-lite (free tier, fast)
-_FLASH_MODEL = "gemini-2.5-flash-lite"
+# gemini-2.0-flash-lite: 30 RPM / 1500 RPD on free tier — most generous flash option
+_FLASH_MODEL = "gemini-2.0-flash-lite"
 _PRO_MODEL   = "gemini-2.5-pro"
 
 # REST API endpoint — avoids grpc/cffi dependency issues with the Python SDK
@@ -174,14 +174,15 @@ class HypothesisGenerator:
         from config import GEMINI_MODEL, GEMINI_TEMPERATURE, GEMINI_TOP_P, \
             GEMINI_TOP_K, GEMINI_MAX_OUTPUT_TOKENS
 
-        # Remap deprecated 1.5 model names
+        # Remap deprecated / lower-quota model names to better free-tier equivalents
         requested_model = os.getenv("GEMINI_MODEL", GEMINI_MODEL)
         _deprecated = {
-            "gemini-1.5-flash":        "gemini-2.5-flash-lite",
-            "gemini-1.5-flash-latest": "gemini-2.5-flash-lite",
+            "gemini-1.5-flash":        "gemini-2.0-flash-lite",
+            "gemini-1.5-flash-latest": "gemini-2.0-flash-lite",
             "gemini-1.5-pro":          "gemini-2.5-pro",
             "gemini-1.5-pro-latest":   "gemini-2.5-pro",
-            "gemini-pro":              "gemini-2.5-flash-lite",
+            "gemini-pro":              "gemini-2.0-flash-lite",
+            "gemini-2.5-flash-lite":   "gemini-2.0-flash-lite",  # lower quota → better model
         }
         if requested_model in _deprecated:
             new_name = _deprecated[requested_model]
@@ -605,11 +606,16 @@ class HypothesisGenerator:
                     logger.warning("All API keys quota-exhausted — failing fast.")
                     return "__QUOTA_EXCEEDED__"
                 logger.warning(
-                    "All keys exhausted (attempt %d/%d). Waiting %ds.",
+                    "All keys exhausted (attempt %d/%d). Waiting %ds for quota to recover.",
                     attempt + 1, _MAX_RETRIES, backoff,
                 )
                 time.sleep(backoff)
                 backoff = min(backoff * 2, 300)
+                # Reset exhausted flags after sleeping so all keys get a fresh
+                # chance — the backoff wait is specifically to let RPM quota recover.
+                self._exhausted.clear()
+                self._key_index = 0
+                logger.info("Quota backoff complete — retrying all keys.")
             elif r.status_code in (400, 403):
                 logger.warning("Gemini blocked/invalid (%d): %s", r.status_code, err_msg)
                 return None

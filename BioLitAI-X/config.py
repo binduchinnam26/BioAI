@@ -77,7 +77,7 @@ OPENALEX_EMAIL = os.getenv("ENTREZ_EMAIL")   # reuse same contact email
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 # Default to flash — generous free-tier quota (15 RPM / 1 500 RPD).
 # Override to "gemini-2.5-pro" in .env for higher quality if quota allows.
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash-lite")
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.0-flash-lite")
 GEMINI_TEMPERATURE = 0.3
 GEMINI_TOP_P = 0.85
 GEMINI_TOP_K = 40
