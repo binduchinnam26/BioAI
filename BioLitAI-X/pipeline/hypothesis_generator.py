@@ -21,6 +21,14 @@ from typing import Any, Dict, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
+
+class DailyQuotaError(Exception):
+    """
+    Raised when all API keys have exhausted their free-tier daily (RPD) quota.
+    Unlike per-minute rate limits, daily quota does not recover after a short wait —
+    it resets at midnight Pacific Time.
+    """
+
 # ── Free-tier constants ────────────────────────────────────────────────────────
 # gemini-2.0-flash-lite free tier: 30 RPM  →  1 call / 4 s is safe
 # gemini-1.5-pro         free tier:  2 RPM  →  1 call / 32 s is safe
@@ -349,6 +357,12 @@ class HypothesisGenerator:
         )
 
         raw_text = self._call_with_retry(prompt)
+        if raw_text == "__DAILY_QUOTA_EXCEEDED__":
+            raise DailyQuotaError(
+                "All Gemini API keys have exhausted their free-tier daily quota (RPD). "
+                "Quota resets at midnight Pacific Time (00:00 PT). "
+                "Please try again tomorrow, or add API keys from additional Google accounts."
+            )
         if not raw_text:
             return None
 
@@ -459,6 +473,12 @@ class HypothesisGenerator:
                         hyp["id"] = hyp_id
                     hypotheses.append(hyp)
 
+            except DailyQuotaError:
+                # Daily quota wall — no point trying remaining gaps, re-raise immediately
+                logger.error(
+                    "Daily quota exhausted at gap %d/%d — aborting batch.", i + 1, total
+                )
+                raise
             except Exception as gap_exc:
                 import traceback as _tb
                 logger.error(
@@ -597,14 +617,33 @@ class HypothesisGenerator:
             err = r.json().get("error", {})
             err_msg = err.get("message", "")
             if r.status_code == 429 or "resource_exhausted" in err_msg.lower():
+                # Detect daily quota (RPD) vs per-minute rate limit (RPM).
+                # Daily quota: resets at midnight PT — no point retrying.
+                # RPM: resets in ~60 s — worth waiting and retrying.
+                _err_lower = err_msg.lower()
+                _is_daily = any(k in _err_lower for k in (
+                    "per_day", "per day", "daily", "requests_per_day",
+                    "_per_1_day", "day_limit",
+                ))
+
                 # Try rotating to the next key before waiting
                 if self._rotate_key():
                     logger.info("Rotated to next API key — retrying immediately.")
                     continue   # retry the loop immediately with the new key
-                # All keys exhausted
+
+                # All keys exhausted — check if it's a daily quota wall
+                if _is_daily:
+                    logger.error(
+                        "Daily quota (RPD) exhausted on all %d key(s). "
+                        "Free-tier quota resets at midnight Pacific Time.",
+                        len(self._api_keys),
+                    )
+                    return "__DAILY_QUOTA_EXCEEDED__"
+
                 if quick_fail:
                     logger.warning("All API keys quota-exhausted — failing fast.")
                     return "__QUOTA_EXCEEDED__"
+
                 logger.warning(
                     "All keys exhausted (attempt %d/%d). Waiting %ds for quota to recover.",
                     attempt + 1, _MAX_RETRIES, backoff,

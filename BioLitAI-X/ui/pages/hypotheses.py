@@ -187,7 +187,37 @@ def _run_generation(session_state, papers_df, gap_report, top_n: int):
     except Exception as exc:
         progress_ph.empty()
         status_ph.empty()
-        st.error(f"Hypothesis generation failed: {exc}")
+        # Check for daily quota exhaustion (DailyQuotaError bubbles up as Exception)
+        if "daily quota" in str(exc).lower() or "midnight pacific" in str(exc).lower():
+            st.markdown(
+                """
+                <div style="background:#1C1A14;border:1px solid #92400E;border-radius:10px;
+                            padding:20px 24px;margin-top:8px;">
+                  <div style="font-size:1.1rem;font-weight:700;color:#F59E0B;margin-bottom:8px;">
+                    ⏳ Daily API Quota Exhausted
+                  </div>
+                  <p style="color:#D1D5DB;font-size:0.875rem;line-height:1.6;margin-bottom:12px;">
+                    Both Gemini API keys have used up their free-tier <b>daily request limit (RPD)</b>.
+                    This is not an error with your keys or the app — it's a Google free-tier limit.
+                  </p>
+                  <div style="background:#111827;border-radius:6px;padding:12px 16px;
+                              margin-bottom:12px;font-size:0.82rem;color:#9CA3AF;line-height:1.8;">
+                    🕛 &nbsp;<b style="color:#F9FAFB;">Quota resets at midnight Pacific Time (00:00 PT)</b><br>
+                    🔑 &nbsp;Add keys from more Google accounts to multiply your daily budget<br>
+                    💾 &nbsp;Previously generated hypotheses are saved and still accessible below
+                  </div>
+                  <p style="color:#6B7280;font-size:0.78rem;margin:0;">
+                    Get free keys at
+                    <a href="https://aistudio.google.com/app/apikey" target="_blank"
+                       style="color:#3B82F6;">aistudio.google.com/app/apikey</a>
+                    — each Google account gives a separate daily quota.
+                  </p>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+        else:
+            st.error(f"Hypothesis generation failed: {exc}")
 
 
 def _render_hypothesis_list(hypotheses: list):
