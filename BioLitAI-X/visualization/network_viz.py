@@ -95,11 +95,11 @@ def get_physics_options(node_count: int, network_type: str = "default") -> Dict:
                 "minVelocity": 0.3,
                 "stabilization": {
                     "enabled": True,
-                    "iterations": 3000,
-                    "updateInterval": 25,
+                    "iterations": 600,
+                    "updateInterval": 10,
                     "fit": True,
                 },
-                "timestep": 0.25,
+                "timestep": 0.2,
             },
             "interaction": {
                 "hover": True,
