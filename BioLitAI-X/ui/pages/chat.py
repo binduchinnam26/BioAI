@@ -34,21 +34,25 @@ def render_chat(session_state):
         unsafe_allow_html=True,
     )
 
-    # ── Check Gemini availability ─────────────────────────────────────────────
-    try:
-        from pipeline.hypothesis_generator import HypothesisGenerator
-        generator = HypothesisGenerator()
-        generator.setup()
-    except EnvironmentError as exc:
-        st.error(
-            f"Gemini API not configured: {exc}\n\n"
-            "Add `GEMINI_API_KEY=your_key` to your `.env` file. "
-            "Get a free key at https://aistudio.google.com/app/apikey"
-        )
-        return
-    except Exception as exc:
-        st.error(f"Chat setup failed: {exc}")
-        return
+    # ── Check Gemini availability (cached — setup() makes a real API call, so
+    #    we must NOT call it on every Streamlit rerender) ──────────────────────
+    if "chat_generator" not in session_state:
+        try:
+            from pipeline.hypothesis_generator import HypothesisGenerator
+            _gen = HypothesisGenerator()
+            _gen.setup()
+            session_state["chat_generator"] = _gen
+        except EnvironmentError as exc:
+            st.error(
+                f"Gemini API not configured: {exc}\n\n"
+                "Add `GEMINI_API_KEY=your_key` to your `.env` file. "
+                "Get a free key at https://aistudio.google.com/app/apikey"
+            )
+            return
+        except Exception as exc:
+            st.error(f"Chat setup failed: {exc}")
+            return
+    generator = session_state["chat_generator"]
 
     embedder = session_state.get("embedder")
 
