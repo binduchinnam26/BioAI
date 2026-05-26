@@ -188,158 +188,138 @@ def show_pipeline_stepper(
     rel_count: int = 0,
 ):
     """
-    Render a 6-step horizontal pipeline stepper with live counter bar.
+    Render pipeline progress as a vertical list of step bars.
+
+    Visual states
+    -------------
+    waiting  — dark bar, dim text; step not yet started.
+    active   — blue left-border, blue label, 5-dot pulse animation on the right.
+    complete — green left-border, green label, gradient fill-line + "Done" tag.
 
     Parameters
     ----------
-    steps : list[str]
-        Step labels, e.g. ['Fetching','Parsing','Cleaning',
-                           'Processing','Embedding','Building Graph']
-    current_step : int
-        Index of the active step (0-5).  -1 = none started.  6 = all complete.
-    paper_count : int
-        Live paper count shown in the counter bar.
-    entity_count : int
-        Live entity count shown in the counter bar.
-    rel_count : int
-        Live relationship count shown in the counter bar.
+    steps        : list[str]  Step labels.
+    current_step : int        0 … len(steps)-1 = active step index.
+                              Pass len(steps) when all steps are done.
+    paper_count, entity_count, rel_count : int  Live counters shown below steps.
     """
     import streamlit as st
 
     n = len(steps)
+    all_complete = current_step >= n
 
-    def _step_circle(idx: int) -> str:
-        if current_step == -1:
-            # Nothing started
-            state = "waiting"
-        elif idx < current_step:
-            state = "complete"
-        elif idx == current_step:
-            state = "active"
-        else:
-            state = "waiting"
-
-        if state == "complete":
-            bg = "#10B981"
-            border = "#059669"
-            icon = "✓"
-            pulse = ""
-        elif state == "active":
-            bg = "#3B82F6"
-            border = "#2563EB"
-            icon = (
-                '<svg width="18" height="18" viewBox="0 0 24 24" '
-                'style="animation:spin 0.9s linear infinite;display:block;">'
-                '<circle cx="12" cy="12" r="10" stroke="#FFFFFF" '
-                'stroke-width="3" fill="none" stroke-dasharray="30 10"/>'
-                "</svg>"
-            )
-            pulse = "animation:pulse_step 1.4s infinite;"
-        else:
-            bg = "#1C2539"
-            border = "#374151"
-            icon = str(idx + 1)
-            pulse = ""
-
-        return (
-            f'<div style="display:flex;flex-direction:column;align-items:center;'
-            f'flex:1;min-width:0;">'
-            # Connector line left
-            + (
-                f'<div style="position:relative;display:flex;align-items:center;'
-                f'width:100%;justify-content:center;">'
-                if True
-                else ""
-            )
-            + f'<div style="width:44px;height:44px;border-radius:50%;'
-            f'background:{bg};border:2px solid {border};'
-            f'display:flex;align-items:center;justify-content:center;'
-            f'font-weight:700;font-size:0.9rem;color:#FFFFFF;{pulse}'
-            f'flex-shrink:0;">{icon}</div>'
-            + "</div>"
-            + f'<div style="margin-top:8px;font-size:0.72rem;color:#9CA3AF;'
-            f'text-align:center;white-space:nowrap;overflow:hidden;'
-            f'text-overflow:ellipsis;max-width:90px;">{steps[idx]}</div>'
-            + "</div>"
-        )
-
-    # Build connector between steps
-    def _connector(idx: int) -> str:
-        if idx < current_step:
-            color = "#10B981"
-        elif idx == current_step - 1:
-            color = "#3B82F6"
-        else:
-            color = "#374151"
-        return (
-            f'<div style="flex:1;height:2px;background:{color};'
-            f'margin-top:-22px;z-index:0;"></div>'
-        )
-
-    stepper_html = """
+    # ── CSS — plain string, NOT f-string, so CSS braces stay literal ─────────
+    css = """
     <style>
-    @keyframes spin {
-      from { transform: rotate(0deg); }
-      to   { transform: rotate(360deg); }
+    @keyframes _blx_pulse {
+      0%   { transform:scale(0.8); background-color:#b3d4fc;
+             box-shadow:0 0 0 0 rgba(178,212,252,0.7); }
+      50%  { transform:scale(1.2); background-color:#6793fb;
+             box-shadow:0 0 0 8px rgba(178,212,252,0); }
+      100% { transform:scale(0.8); background-color:#b3d4fc;
+             box-shadow:0 0 0 0 rgba(178,212,252,0.7); }
     }
-    @keyframes pulse_step {
-      0%   { box-shadow: 0 0 0 0 rgba(59,130,246,0.5); }
-      70%  { box-shadow: 0 0 0 10px rgba(59,130,246,0); }
-      100% { box-shadow: 0 0 0 0 rgba(59,130,246,0); }
+    .blx-dot {
+      height:8px; width:8px; border-radius:50%;
+      background-color:#b3d4fc; flex-shrink:0;
+      animation:_blx_pulse 1.5s infinite ease-in-out;
     }
+    .blx-dot:nth-child(1) { animation-delay:-0.30s; }
+    .blx-dot:nth-child(2) { animation-delay:-0.10s; }
+    .blx-dot:nth-child(3) { animation-delay: 0.10s; }
+    .blx-dot:nth-child(4) { animation-delay: 0.25s; }
+    .blx-dot:nth-child(5) { animation-delay: 0.40s; }
     </style>
-    <div style="
-      background:#111827;
-      border:1px solid #1F2937;
-      border-radius:12px;
-      padding:24px 28px 20px 28px;
-      margin-bottom:20px;
-    ">
-      <div style="display:flex;align-items:flex-start;position:relative;">
     """
 
-    for i in range(n):
-        stepper_html += _step_circle(i)
-        if i < n - 1:
-            stepper_html += _connector(i)
+    html = css
 
-    stepper_html += "</div>"
+    # ── Outer card ────────────────────────────────────────────────────────────
+    html += (
+        '<div style="background:#0A1220;border:1px solid #1F2937;'
+        'border-radius:14px;padding:22px 24px 18px 24px;margin-bottom:20px;">'
+    )
 
-    # Live counter bar
-    stepper_html += f"""
-      <div style="
-        display:flex;
-        gap:32px;
-        margin-top:22px;
-        padding-top:16px;
-        border-top:1px solid #1F2937;
-      ">
-        <div style="display:flex;flex-direction:column;align-items:center;">
-          <span style="font-size:1.4rem;font-weight:700;color:#3B82F6;">
-            {paper_count:,}
-          </span>
-          <span style="font-size:0.72rem;color:#9CA3AF;margin-top:2px;">
-            Papers
-          </span>
-        </div>
-        <div style="display:flex;flex-direction:column;align-items:center;">
-          <span style="font-size:1.4rem;font-weight:700;color:#10B981;">
-            {entity_count:,}
-          </span>
-          <span style="font-size:0.72rem;color:#9CA3AF;margin-top:2px;">
-            Entities
-          </span>
-        </div>
-        <div style="display:flex;flex-direction:column;align-items:center;">
-          <span style="font-size:1.4rem;font-weight:700;color:#9B72CF;">
-            {rel_count:,}
-          </span>
-          <span style="font-size:0.72rem;color:#9CA3AF;margin-top:2px;">
-            Relationships
-          </span>
-        </div>
-      </div>
-    </div>
-    """
+    # ── Step bars ─────────────────────────────────────────────────────────────
+    for i, step in enumerate(steps):
+        if all_complete or i < current_step:
+            # ── Complete ──────────────────────────────────────────────────────
+            html += (
+                '<div style="'
+                'background:linear-gradient(135deg,#071320 0%,#091A2B 100%);'
+                'border:1px solid #1A3350;border-left:3px solid #10B981;'
+                'border-radius:8px;padding:12px 18px;margin-bottom:8px;'
+                'display:flex;align-items:center;gap:12px;'
+                'box-shadow:0 1px 6px rgba(0,0,0,0.25),'
+                'inset 0 1px 0 rgba(16,185,129,0.08);">'
+                f'<span style="font-size:0.84rem;font-weight:600;color:#34D399;'
+                f'letter-spacing:0.01em;flex:1;">{step}</span>'
+                '<div style="flex:2;height:1px;'
+                'background:linear-gradient(to right,rgba(16,185,129,0.35),transparent);'
+                'border-radius:1px;"></div>'
+                '<span style="font-size:0.68rem;color:#059669;font-weight:600;'
+                'letter-spacing:0.07em;text-transform:uppercase;white-space:nowrap;">'
+                'Done</span>'
+                '</div>'
+            )
+        elif i == current_step:
+            # ── Active (animated dots) ────────────────────────────────────────
+            html += (
+                '<div style="'
+                'background:linear-gradient(135deg,#0D1B2A 0%,#0F2240 100%);'
+                'border:1px solid #1E3A5F;border-left:3px solid #3B82F6;'
+                'border-radius:8px;padding:12px 18px;margin-bottom:8px;'
+                'display:flex;align-items:center;justify-content:space-between;'
+                'box-shadow:0 0 18px rgba(59,130,246,0.10),'
+                'inset 0 1px 0 rgba(59,130,246,0.08);">'
+                f'<span style="font-size:0.84rem;font-weight:600;color:#93C5FD;'
+                f'letter-spacing:0.01em;">{step}</span>'
+                '<div style="display:flex;align-items:center;gap:7px;padding-right:2px;">'
+                '<div class="blx-dot"></div>'
+                '<div class="blx-dot"></div>'
+                '<div class="blx-dot"></div>'
+                '<div class="blx-dot"></div>'
+                '<div class="blx-dot"></div>'
+                '</div>'
+                '</div>'
+            )
+        else:
+            # ── Waiting ───────────────────────────────────────────────────────
+            html += (
+                '<div style="'
+                'background:#060D1A;border:1px solid #111827;'
+                'border-left:3px solid #1C2539;'
+                'border-radius:8px;padding:12px 18px;margin-bottom:8px;'
+                'display:flex;align-items:center;">'
+                f'<span style="font-size:0.84rem;font-weight:500;color:#2D3748;'
+                f'letter-spacing:0.01em;">{step}</span>'
+                '</div>'
+            )
 
-    st.markdown(stepper_html, unsafe_allow_html=True)
+    # ── Live stats bar ────────────────────────────────────────────────────────
+    html += (
+        '<div style="display:flex;gap:28px;margin-top:16px;padding-top:14px;'
+        'border-top:1px solid #1F2937;">'
+        # Papers
+        '<div style="display:flex;flex-direction:column;align-items:center;">'
+        f'<span style="font-size:1.3rem;font-weight:700;color:#3B82F6;">{paper_count:,}</span>'
+        '<span style="font-size:0.67rem;color:#6B7280;margin-top:2px;'
+        'letter-spacing:0.05em;text-transform:uppercase;">Papers</span>'
+        '</div>'
+        # Entities
+        '<div style="display:flex;flex-direction:column;align-items:center;">'
+        f'<span style="font-size:1.3rem;font-weight:700;color:#10B981;">{entity_count:,}</span>'
+        '<span style="font-size:0.67rem;color:#6B7280;margin-top:2px;'
+        'letter-spacing:0.05em;text-transform:uppercase;">Entities</span>'
+        '</div>'
+        # Relationships
+        '<div style="display:flex;flex-direction:column;align-items:center;">'
+        f'<span style="font-size:1.3rem;font-weight:700;color:#9B72CF;">{rel_count:,}</span>'
+        '<span style="font-size:0.67rem;color:#6B7280;margin-top:2px;'
+        'letter-spacing:0.05em;text-transform:uppercase;">Relationships</span>'
+        '</div>'
+        '</div>'
+        '</div>'   # close outer card
+    )
+
+    st.markdown(html, unsafe_allow_html=True)

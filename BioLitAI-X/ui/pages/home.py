@@ -100,6 +100,72 @@ def render_home(session_state):
                     session_state["current_query"] = q
                     st.rerun()
 
+    # ── Completion banner (persists after pipeline finishes) ──────────────────
+    if (
+        session_state.get("pipeline_complete")
+        and session_state.get("pipeline_status") != "running"
+        and not run_clicked
+    ):
+        _, _bcol, _ = st.columns([1, 3, 1])
+        with _bcol:
+            _n_p = (
+                len(session_state["papers_df"])
+                if session_state.get("papers_df") is not None
+                else 0
+            )
+            st.markdown(
+                f"""
+                <div style="
+                  margin-top:1.5rem;
+                  padding:22px 26px;
+                  background:linear-gradient(135deg,#0B1F3A 0%,#0D2750 100%);
+                  border:1px solid #1E4080;
+                  border-radius:14px;
+                  text-align:center;
+                ">
+                  <div style="font-size:1.6rem;margin-bottom:10px;">🎉</div>
+                  <div style="font-size:1.0rem;font-weight:700;color:#F9FAFB;
+                               margin-bottom:8px;">
+                    Analysis Ready!
+                  </div>
+                  <div style="font-size:0.83rem;color:#9CA3AF;line-height:1.7;
+                               margin-bottom:16px;">
+                    <b style="color:#60A5FA;">{_n_p:,} papers</b> have been processed and
+                    indexed. Use the <b style="color:#93C5FD;">sidebar on the left</b>
+                    to navigate to any view and explore your results.
+                  </div>
+                  <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center;">
+                    <span style="background:#1C2539;color:#60A5FA;
+                                 border:1px solid #1E3A5F;border-radius:20px;
+                                 padding:5px 15px;font-size:0.75rem;font-weight:600;">
+                      Analysis
+                    </span>
+                    <span style="background:#1C2539;color:#60A5FA;
+                                 border:1px solid #1E3A5F;border-radius:20px;
+                                 padding:5px 15px;font-size:0.75rem;font-weight:600;">
+                      Knowledge Graph
+                    </span>
+                    <span style="background:#1C2539;color:#60A5FA;
+                                 border:1px solid #1E3A5F;border-radius:20px;
+                                 padding:5px 15px;font-size:0.75rem;font-weight:600;">
+                      Hypotheses
+                    </span>
+                    <span style="background:#1C2539;color:#60A5FA;
+                                 border:1px solid #1E3A5F;border-radius:20px;
+                                 padding:5px 15px;font-size:0.75rem;font-weight:600;">
+                      Semantic Search
+                    </span>
+                    <span style="background:#1C2539;color:#60A5FA;
+                                 border:1px solid #1E3A5F;border-radius:20px;
+                                 padding:5px 15px;font-size:0.75rem;font-weight:600;">
+                      Chat
+                    </span>
+                  </div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
     # ── 4. Pipeline execution ─────────────────────────────────────────────────
     if run_clicked:
         if not query or not query.strip():
@@ -157,6 +223,7 @@ def _run_pipeline(session_state, query: str, max_results: int):
 
     # ── Initialise DB session ─────────────────────────────────────────────────
     session_state["pipeline_status"] = "running"
+    session_state["pipeline_complete"] = False
     session_state["current_query"] = query
 
     db_session_id = -1
