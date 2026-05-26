@@ -12,8 +12,8 @@ def render_knowledge_graph_page(session_state):
     import streamlit as st
 
     st.markdown(
-        '<h2 style="color:#F9FAFB;font-weight:700;margin-bottom:0.25rem;">'
-        '🕸️ Knowledge Graph</h2>',
+        '<h2 style="font-size:1.4rem;font-weight:700;color:#F9FAFB;'
+        'margin-bottom:0.25rem;">Knowledge Graph</h2>',
         unsafe_allow_html=True,
     )
 
