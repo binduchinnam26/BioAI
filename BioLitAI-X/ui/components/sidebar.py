@@ -50,12 +50,12 @@ def render_sidebar(session_state) -> str:
 
         # ── Navigation ────────────────────────────────────────────
         _nav_pages = [
-            ("🏠", "Home"),
-            ("📊", "Analysis"),
-            ("🕸️", "Knowledge Graph"),
-            ("💡", "Hypotheses"),
-            ("🔍", "Semantic Search"),
-            ("💬", "Chat"),
+            "Home",
+            "Analysis",
+            "Knowledge Graph",
+            "Hypotheses",
+            "Semantic Search",
+            "Chat",
         ]
 
         # Initialise selected page on first load
@@ -116,10 +116,10 @@ def render_sidebar(session_state) -> str:
             unsafe_allow_html=True,
         )
 
-        for _icon, _page in _nav_pages:
+        for _page in _nav_pages:
             _btn_type = "primary" if selected_page == _page else "secondary"
             if st.button(
-                f"{_icon}  {_page}",
+                _page,
                 key=f"_nav_{_page}",
                 use_container_width=True,
                 type=_btn_type,
