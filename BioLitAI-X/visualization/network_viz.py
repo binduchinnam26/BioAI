@@ -1370,11 +1370,24 @@ def render_topic_network(
         def label_fn(node, data):
             top_words = data.get("top_words", [])
             if isinstance(top_words, list) and top_words:
-                words = [
+                raw = [
                     w[0] if isinstance(w, (list, tuple)) else str(w)
-                    for w in top_words[:3]
+                    for w in top_words
                 ]
-                return ", ".join(words)
+                # Skip words that are prefix/plural variants of an already-selected
+                # word (e.g. "mutation" and "mutations" → keep only the first seen).
+                selected = []
+                for w in raw:
+                    wl = w.lower()
+                    if any(
+                        wl.startswith(s.lower()) or s.lower().startswith(wl)
+                        for s in selected
+                    ):
+                        continue
+                    selected.append(w)
+                    if len(selected) >= 3:
+                        break
+                return ", ".join(selected)
             return str(data.get("label", f"Topic {node}"))
 
         def tooltip_fn(node, data, g):

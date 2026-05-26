@@ -241,10 +241,21 @@ def _render_topic_paper_table(session_state, papers_df, graph):
     for tid, pmid_list in sorted_topics:
         node_data = graph.nodes[tid]
         raw_words = node_data.get("top_words", [])
-        words = [
+        _raw = [
             w[0] if isinstance(w, (list, tuple)) else str(w)
-            for w in raw_words[:3]
+            for w in raw_words
         ]
+        words = []
+        for w in _raw:
+            wl = w.lower()
+            if any(
+                wl.startswith(s.lower()) or s.lower().startswith(wl)
+                for s in words
+            ):
+                continue
+            words.append(w)
+            if len(words) >= 3:
+                break
         label = ", ".join(words) if words else f"Topic {tid}"
         paper_count = node_data.get("weight", len(pmid_list))
         color = node_data.get("color_hex", "#3B82F6")
