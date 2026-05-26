@@ -36,17 +36,19 @@ _KW_TYPE_COLORS = {
 
 def render_publication_trend(papers_df):
     """
-    Render a combined publication trend chart: bars for annual counts on the
-    left Y-axis and a spline line for cumulative totals on the right Y-axis.
+    Render a combined publication trend chart with three enhancements:
 
-    Bar colours indicate year-over-year growth direction:
-      green  (#10B981) = more papers than the previous year
-      red    (#EF4444) = fewer papers than the previous year
-      blue   (#3B82F6) = first year or unchanged
-    A dashed amber line marks the corpus average papers/year.
-    X-axis ticks are pinned to actual data years to prevent duplicates.
+    1. Auto granularity — monthly when corpus spans < 3 years (pub_date used),
+       yearly otherwise.  Prevents all bars collapsing into 1-2 giant columns.
+    2. Growth-direction bar colours — green = more than previous period,
+       red = fewer, blue = first period or unchanged.
+    3. Research momentum badge — compares last 3 periods vs prior 3 periods
+       and shows 🔥 Accelerating / ➡ Stable / 📉 Slowing above the chart.
+
+    A dashed amber average reference line is also shown on the left Y-axis.
     """
     import streamlit as st
+    import calendar as _cal
 
     if papers_df is None or (hasattr(papers_df, "empty") and papers_df.empty):
         st.info("No publication data available. Run the pipeline first.")
@@ -57,93 +59,185 @@ def render_publication_trend(papers_df):
         st.info("Publication year data is not available.")
         return
 
-    year_counts = (
-        df[df["pub_year"].notna()]
-        .groupby("pub_year")
-        .size()
-        .reset_index(name="count")
-        .sort_values("pub_year")
-    )
-
-    if year_counts.empty:
+    valid_years = df["pub_year"].dropna()
+    if valid_years.empty:
         st.info("No publication year data to display.")
         return
 
-    year_counts["pub_year"] = year_counts["pub_year"].astype(int)
-    year_counts["cumulative"] = year_counts["count"].cumsum()
+    min_year = int(valid_years.min())
+    max_year = int(valid_years.max())
+    year_span = max_year - min_year
 
-    years  = year_counts["pub_year"].tolist()
-    counts = year_counts["count"].tolist()
+    # ── Option 3: auto granularity ────────────────────────────────────────────
+    use_monthly = False
+    if year_span < 3 and "pub_date" in df.columns:
+        def _extract_ym(d):
+            """Return 'YYYY-MM' string or None if month info is absent."""
+            if pd.isna(d) or not str(d).strip():
+                return None
+            s = str(d).strip()
+            return s[:7] if len(s) >= 7 else None
+
+        df["_ym"] = df["pub_date"].apply(_extract_ym)
+        # Only switch to monthly if ≥ 50 % of papers carry month-level dates
+        if df["_ym"].notna().sum() / len(df) >= 0.5:
+            use_monthly = True
+
+    if use_monthly:
+        counts_df = (
+            df.dropna(subset=["_ym"])
+            .groupby("_ym")
+            .size()
+            .reset_index(name="count")
+            .sort_values("_ym")
+        )
+        if counts_df.empty:
+            st.info("No monthly publication data to display.")
+            return
+
+        periods_raw = counts_df["_ym"].tolist()   # ["2025-11", "2026-01", …]
+        counts      = counts_df["count"].tolist()
+
+        def _fmt_ym(ym):
+            try:
+                y, m = ym.split("-")
+                return f"{_cal.month_abbr[int(m)]} {y}"
+            except Exception:
+                return ym
+
+        x_vals      = [_fmt_ym(p) for p in periods_raw]
+        x_title     = "Month"
+        period_unit = "mo"
+
+    else:
+        yc = (
+            df[df["pub_year"].notna()]
+            .groupby("pub_year")
+            .size()
+            .reset_index(name="count")
+            .sort_values("pub_year")
+        )
+        if yc.empty:
+            st.info("No publication year data to display.")
+            return
+
+        yc["pub_year"] = yc["pub_year"].astype(int)
+        x_vals      = yc["pub_year"].tolist()   # integers
+        counts      = yc["count"].tolist()
+        x_title     = "Year"
+        period_unit = "yr"
+
+    cumulative   = list(pd.Series(counts).cumsum())
+    avg_per_period = sum(counts) / len(counts)
 
     # ── Growth-direction bar colours ──────────────────────────────────────────
     bar_colors = []
     for i, c in enumerate(counts):
         if i == 0:
-            bar_colors.append("#3B82F6")        # first year — neutral blue
+            bar_colors.append("#3B82F6")    # first period — neutral blue
         elif c > counts[i - 1]:
-            bar_colors.append("#10B981")        # growth — green
+            bar_colors.append("#10B981")    # growth — green
         elif c < counts[i - 1]:
-            bar_colors.append("#EF4444")        # decline — red
+            bar_colors.append("#EF4444")    # decline — red
         else:
-            bar_colors.append("#3B82F6")        # unchanged — neutral blue
+            bar_colors.append("#3B82F6")    # unchanged — neutral blue
 
-    avg_per_year = year_counts["count"].mean()
+    # ── Option 2: research momentum badge ────────────────────────────────────
+    if len(counts) >= 6:
+        recent_avg = sum(counts[-3:]) / 3
+        prior_avg  = sum(counts[-6:-3]) / 3
+        if prior_avg > 0:
+            pct_change = (recent_avg - prior_avg) / prior_avg
+            if pct_change > 0.10:
+                badge_color = "#10B981"
+                badge_bg    = "#10B98120"
+                badge_text  = "🔥 Accelerating"
+            elif pct_change < -0.10:
+                badge_color = "#EF4444"
+                badge_bg    = "#EF444420"
+                badge_text  = "📉 Slowing"
+            else:
+                badge_color = "#3B82F6"
+                badge_bg    = "#3B82F620"
+                badge_text  = "➡ Stable"
 
+            st.markdown(
+                f'<div style="text-align:right;margin-bottom:4px;">'
+                f'<span style="font-size:0.72rem;color:#6B7280;margin-right:6px;">'
+                f'Field momentum</span>'
+                f'<span style="background:{badge_bg};color:{badge_color};'
+                f'border-radius:12px;padding:3px 10px;font-size:0.75rem;'
+                f'font-weight:600;">{badge_text}</span></div>',
+                unsafe_allow_html=True,
+            )
+
+    # ── Build chart ───────────────────────────────────────────────────────────
     fig = go.Figure()
 
-    # Bar trace — annual counts (left Y-axis)
+    # Bar trace
     fig.add_trace(
         go.Bar(
-            x=years,
+            x=x_vals,
             y=counts,
-            name="Papers / Year",
+            name=f"Papers / {x_title}",
             marker_color=bar_colors,
             marker_line_color="rgba(0,0,0,0.15)",
             marker_line_width=0.5,
             opacity=0.88,
             yaxis="y1",
-            hovertemplate=(
-                "<b>Year:</b> %{x}<br>"
-                "<b>Publications:</b> %{y:,}<extra></extra>"
-            ),
+            hovertemplate="<b>%{x}</b><br>Publications: %{y:,}<extra></extra>",
         )
     )
 
-    # Average reference line (dashed amber, left Y-axis)
+    # Average reference line
     fig.add_trace(
         go.Scatter(
-            x=[years[0], years[-1]],
-            y=[avg_per_year, avg_per_year],
-            name=f"Avg {avg_per_year:.1f} / yr",
+            x=[x_vals[0], x_vals[-1]],
+            y=[avg_per_period, avg_per_period],
+            name=f"Avg {avg_per_period:.1f} / {period_unit}",
             mode="lines",
             line=dict(color="#F59E0B", width=1.5, dash="dash"),
             yaxis="y1",
             hovertemplate=(
-                f"Average: {avg_per_year:.1f} papers/yr<extra></extra>"
+                f"Average: {avg_per_period:.1f} papers/{period_unit}"
+                "<extra></extra>"
             ),
         )
     )
 
-    # Cumulative line (right Y-axis, spline)
+    # Cumulative line
     fig.add_trace(
         go.Scatter(
-            x=years,
-            y=year_counts["cumulative"].tolist(),
+            x=x_vals,
+            y=cumulative,
             name="Cumulative",
             mode="lines+markers",
             line=dict(color="#10B981", shape="spline", smoothing=1.3, width=2.5),
-            marker=dict(size=6, color="#10B981"),
+            marker=dict(size=4 if use_monthly else 6, color="#10B981"),
             yaxis="y2",
-            hovertemplate=(
-                "<b>Year:</b> %{x}<br>"
-                "<b>Cumulative:</b> %{y:,}<extra></extra>"
-            ),
+            hovertemplate="<b>%{x}</b><br>Cumulative: %{y:,}<extra></extra>",
         )
     )
 
+    # x-axis: categorical + rotated labels for monthly; pinned integer ticks for yearly
+    if use_monthly:
+        xaxis_cfg = dict(
+            gridcolor="#1F2937",
+            zerolinecolor="#1F2937",
+            tickangle=-45,
+        )
+    else:
+        xaxis_cfg = dict(
+            gridcolor="#1F2937",
+            zerolinecolor="#1F2937",
+            tickmode="array",
+            tickvals=x_vals,
+            tickformat="d",
+        )
+
     fig.update_layout(**{
         **_DARK_LAYOUT,
-        "height": 420,
+        "height": 440 if use_monthly else 420,
         "hovermode": "x unified",
         "showlegend": True,
         "legend": dict(
@@ -155,15 +249,12 @@ def render_publication_trend(papers_df):
             bgcolor="rgba(0,0,0,0)",
             font=dict(color=COLOR_TEXT_SECONDARY, size=12),
         ),
-        "xaxis": dict(
-            gridcolor="#1F2937",
-            zerolinecolor="#1F2937",
-            tickmode="array",
-            tickvals=years,
-            tickformat="d",
-        ),
+        "xaxis": xaxis_cfg,
         "yaxis": dict(
-            title=dict(text="Papers / Year", font=dict(color="#3B82F6")),
+            title=dict(
+                text=f"Papers / {x_title}",
+                font=dict(color="#3B82F6"),
+            ),
             tickfont=dict(color="#3B82F6"),
             gridcolor="#1F2937",
             zerolinecolor="#1F2937",
