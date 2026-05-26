@@ -88,6 +88,13 @@ if not st.session_state.get("_sessions_loaded"):
     st.session_state["_sessions_loaded"] = True
 
 # ── Sidebar navigation ─────────────────────────────────────────────────────
+# If the Run Pipeline button was just clicked with a valid query, mark the
+# pipeline as "running" NOW — before render_sidebar() reads the status —
+# so the sidebar badge reflects the correct state immediately.
+if (st.session_state.get("home_run_btn", False)
+        and st.session_state.get("home_query_input", "").strip()):
+    st.session_state["pipeline_status"] = "running"
+
 from ui.components.sidebar import render_sidebar
 
 selected_page = render_sidebar(st.session_state)
