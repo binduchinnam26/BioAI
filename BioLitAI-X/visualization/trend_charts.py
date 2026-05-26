@@ -433,13 +433,13 @@ def render_author_productivity(papers_df):
             except Exception:
                 authors = []
         if isinstance(authors, list) and authors:
-            first = authors[0]
-            if isinstance(first, dict):
-                name = first.get("name") or first.get("normalized_name") or ""
-            else:
-                name = str(first)
-            if name.strip():
-                author_counts[name.strip()] += 1
+            for author in authors:
+                if isinstance(author, dict):
+                    name = author.get("name") or author.get("normalized_name") or ""
+                else:
+                    name = str(author)
+                if name.strip():
+                    author_counts[name.strip()] += 1
         else:
             # Fallback: first_author column
             fa = row.get("first_author")
@@ -497,6 +497,8 @@ def render_author_productivity(papers_df):
             title="Number of Publications",
             gridcolor="#1F2937",
             zerolinecolor="#1F2937",
+            tickformat="d",
+            dtick=1,
         ),
         "yaxis": dict(
             tickfont=dict(size=11),
