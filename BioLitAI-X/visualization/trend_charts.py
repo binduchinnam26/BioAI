@@ -412,8 +412,8 @@ def render_top_keywords(papers_df):
 
 def render_author_productivity(papers_df):
     """
-    Render a horizontal bar chart of the top 15 most productive authors,
-    using a gradient fill from dark blue (least) to bright blue (most).
+    Render a horizontal stacked bar chart of the top 15 most productive authors,
+    split into first-author (blue) vs co-author (purple) contributions.
     """
     import streamlit as st
     import json
@@ -423,7 +423,8 @@ def render_author_productivity(papers_df):
         return
 
     from collections import Counter
-    author_counts: Counter = Counter()
+    first_author_counts: Counter = Counter()
+    coauthor_counts: Counter = Counter()
 
     for _, row in papers_df.iterrows():
         authors = row.get("authors")
@@ -433,61 +434,73 @@ def render_author_productivity(papers_df):
             except Exception:
                 authors = []
         if isinstance(authors, list) and authors:
-            for author in authors:
+            for i, author in enumerate(authors):
                 if isinstance(author, dict):
                     name = author.get("name") or author.get("normalized_name") or ""
                 else:
                     name = str(author)
                 if name.strip():
-                    author_counts[name.strip()] += 1
+                    if i == 0:
+                        first_author_counts[name.strip()] += 1
+                    else:
+                        coauthor_counts[name.strip()] += 1
         else:
             # Fallback: first_author column
             fa = row.get("first_author")
             if fa and isinstance(fa, str) and fa.strip():
-                author_counts[fa.strip()] += 1
+                first_author_counts[fa.strip()] += 1
 
-    if not author_counts:
+    all_authors = set(first_author_counts.keys()) | set(coauthor_counts.keys())
+    if not all_authors:
         st.info("No author data found in the corpus.")
         return
 
-    top_15 = author_counts.most_common(15)
+    total_counts = {
+        a: first_author_counts.get(a, 0) + coauthor_counts.get(a, 0)
+        for a in all_authors
+    }
+
+    top_15 = sorted(total_counts.items(), key=lambda x: x[1], reverse=True)[:15]
     if not top_15:
         st.info("No authors found.")
         return
 
-    names = [a for a, _ in reversed(top_15)]
-    counts = [c for _, c in reversed(top_15)]
+    # Reverse so highest total is at the top in a horizontal bar chart
+    top_15_rev = list(reversed(top_15))
+    names = [a for a, _ in top_15_rev]
+    first_counts = [first_author_counts.get(a, 0) for a in names]
+    co_counts = [coauthor_counts.get(a, 0) for a in names]
 
-    # Linear colour gradient: most papers=#3B82F6, fewest=#1E3A5F
-    max_c = max(counts)
-    min_c = min(counts)
+    fig = go.Figure()
 
-    def _lerp_color(count):
-        if max_c == min_c:
-            return "#3B82F6"
-        t = (count - min_c) / (max_c - min_c)
-        r = int(0x1E + t * (0x3B - 0x1E))
-        g = int(0x3A + t * (0x82 - 0x3A))
-        b = int(0x5F + t * (0xF6 - 0x5F))
-        return f"#{r:02X}{g:02X}{b:02X}"
+    fig.add_trace(go.Bar(
+        x=first_counts,
+        y=names,
+        name="First Author",
+        orientation="h",
+        marker_color="#3B82F6",
+        hovertemplate=(
+            "<b>%{y}</b><br>"
+            "First-author papers: %{x:,}<extra></extra>"
+        ),
+    ))
 
-    bar_colors = [_lerp_color(c) for c in counts]
+    fig.add_trace(go.Bar(
+        x=co_counts,
+        y=names,
+        name="Co-author",
+        orientation="h",
+        marker_color="#8B5CF6",
+        hovertemplate=(
+            "<b>%{y}</b><br>"
+            "Co-author papers: %{x:,}<extra></extra>"
+        ),
+    ))
 
-    fig = go.Figure(
-        go.Bar(
-            x=counts,
-            y=names,
-            orientation="h",
-            marker_color=bar_colors,
-            hovertemplate=(
-                "<b>%{y}</b><br>"
-                "Publications: %{x:,}<extra></extra>"
-            ),
-        )
-    )
     fig.update_layout(**{
         **_DARK_LAYOUT,
         "height": 460,
+        "barmode": "stack",
         "title": dict(
             text="Top 15 Authors by Publication Count",
             font=dict(color=COLOR_TEXT_PRIMARY, size=14),
@@ -504,6 +517,15 @@ def render_author_productivity(papers_df):
             tickfont=dict(size=11),
             gridcolor="#1F2937",
         ),
-        "showlegend": False,
+        "legend": dict(
+            orientation="h",
+            yanchor="bottom",
+            y=1.02,
+            xanchor="right",
+            x=1,
+            bgcolor="rgba(0,0,0,0)",
+            font=dict(color=COLOR_TEXT_SECONDARY, size=11),
+        ),
+        "showlegend": True,
     })
     st.plotly_chart(fig, use_container_width=True, config=_NO_MODEBAR)
