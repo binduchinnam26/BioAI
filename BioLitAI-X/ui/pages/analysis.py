@@ -36,12 +36,12 @@ def render_analysis(session_state):
     )
 
     tab_labels = [
-        "📈 Trends",
-        "🏷️ Keywords",
-        "👤 Authors",
-        "🤝 Co-authorship",
-        "🔑 Keyword Net",
-        "🔵 Topic Net",
+        "Trends",
+        "Keywords",
+        "Authors",
+        "Co-authorship",
+        "Keyword Net",
+        "Topic Net",
     ]
     tabs = st.tabs(tab_labels)
 
