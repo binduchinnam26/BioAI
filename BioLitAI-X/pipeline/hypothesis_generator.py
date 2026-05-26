@@ -620,16 +620,39 @@ class HypothesisGenerator:
                 # Detect daily quota (RPD) vs per-minute rate limit (RPM).
                 # Daily quota: resets at midnight PT — no point retrying.
                 # RPM: resets in ~60 s — worth waiting and retrying.
-                _err_lower = err_msg.lower()
-                # Treat as RPM (recoverable in ~60 s) only if the error explicitly
-                # mentions per-minute / rate limits. Everything else — including
-                # Google's 2026 generic "resource exhausted" wording — is treated as
-                # a daily (RPD) wall that won't recover until midnight Pacific Time.
-                _is_rpm = any(k in _err_lower for k in (
-                    "per_minute", "per minute", "minute", "rpm",
-                    "rate_limit", "rate limit", "rate-limit",
-                ))
-                _is_daily = not _is_rpm
+                #
+                # Use Google's structured `details` array which contains a
+                # `quota_limit` metadata key — e.g.
+                #   "requests_per_minute_per_project"  → RPM
+                #   "requests_per_day_per_project"     → RPD (daily)
+                # This is far more reliable than parsing the human-readable
+                # `message` string, which may contain the word "minute" even
+                # for daily-quota errors (e.g. "retry after a few minutes").
+                _quota_limit = ""
+                for _detail in err.get("details", []):
+                    _meta = _detail.get("metadata", {})
+                    if "quota_limit" in _meta:
+                        _quota_limit = _meta["quota_limit"].lower()
+                        break
+
+                if _quota_limit:
+                    # Authoritative: use the structured quota_limit field.
+                    _is_rpm = "per_minute" in _quota_limit or "minute" in _quota_limit
+                    _is_daily = "per_day" in _quota_limit or "_per_1_day" in _quota_limit
+                    # If quota_limit exists but matches neither pattern, treat
+                    # as daily (safe default — avoids infinite retry loops).
+                    if not _is_rpm and not _is_daily:
+                        _is_daily = True
+                else:
+                    # Fallback: no details field — infer from message text.
+                    # Only treat as RPM if the message explicitly names a
+                    # per-minute / rate-limit concept; default to daily.
+                    _err_lower = err_msg.lower()
+                    _is_rpm = any(k in _err_lower for k in (
+                        "per_minute", "per minute", "rpm",
+                        "rate_limit", "rate limit", "rate-limit",
+                    ))
+                    _is_daily = not _is_rpm
 
                 # Try rotating to the next key before waiting
                 if self._rotate_key():
