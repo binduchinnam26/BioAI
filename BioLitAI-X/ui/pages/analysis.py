@@ -39,9 +39,9 @@ def render_analysis(session_state):
         "Trends",
         "Keywords",
         "Authors",
-        "Co-authorship",
-        "Keyword Net",
-        "Topic Net",
+        "Co-authorship Network",
+        "Keyword Network",
+        "Topics",
     ]
     tabs = st.tabs(tab_labels)
 
