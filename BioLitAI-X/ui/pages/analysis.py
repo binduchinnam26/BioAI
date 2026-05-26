@@ -169,12 +169,6 @@ def _render_topic_net_tab(session_state, papers_df):
             st.error(f"Topic network could not be built: {err}")
             return
 
-    try:
-        from visualization.network_viz import render_topic_network
-        render_topic_network(graph)
-    except Exception as exc:
-        st.error(f"Could not render topic network: {exc}")
-
     _render_topic_paper_table(session_state, papers_df, graph)
 
 
