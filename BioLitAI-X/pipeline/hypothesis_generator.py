@@ -621,10 +621,15 @@ class HypothesisGenerator:
                 # Daily quota: resets at midnight PT — no point retrying.
                 # RPM: resets in ~60 s — worth waiting and retrying.
                 _err_lower = err_msg.lower()
-                _is_daily = any(k in _err_lower for k in (
-                    "per_day", "per day", "daily", "requests_per_day",
-                    "_per_1_day", "day_limit",
+                # Treat as RPM (recoverable in ~60 s) only if the error explicitly
+                # mentions per-minute / rate limits. Everything else — including
+                # Google's 2026 generic "resource exhausted" wording — is treated as
+                # a daily (RPD) wall that won't recover until midnight Pacific Time.
+                _is_rpm = any(k in _err_lower for k in (
+                    "per_minute", "per minute", "minute", "rpm",
+                    "rate_limit", "rate limit", "rate-limit",
                 ))
+                _is_daily = not _is_rpm
 
                 # Try rotating to the next key before waiting
                 if self._rotate_key():

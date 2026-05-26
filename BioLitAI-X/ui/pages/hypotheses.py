@@ -116,9 +116,15 @@ def _run_generation(session_state, papers_df, gap_report, top_n: int):
     status_ph = st.empty()
 
     try:
-        from pipeline.hypothesis_generator import HypothesisGenerator
-        generator = HypothesisGenerator()
-        generator.setup()  # raises EnvironmentError if GEMINI_API_KEY missing
+        if "hyp_generator" not in session_state:
+            from pipeline.hypothesis_generator import HypothesisGenerator
+            _gen = HypothesisGenerator()
+            _gen.setup()  # raises EnvironmentError if GEMINI_API_KEY missing
+            session_state["hyp_generator"] = _gen
+        generator = session_state["hyp_generator"]
+        # Reset key rotation so every Generate batch starts with all keys available
+        generator._exhausted = set()
+        generator._key_index = 0
 
         from database.db_manager import DatabaseManager
         db = DatabaseManager()
