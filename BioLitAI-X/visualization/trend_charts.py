@@ -369,6 +369,8 @@ def render_topic_evolution(topics_over_time_df):
             title="Publication Year",
             gridcolor="#1F2937",
             zerolinecolor="#1F2937",
+            tickmode="array",
+            tickvals=pivot_pct.index.tolist(),
             tickformat="d",
         ),
         "legend": dict(
