@@ -123,43 +123,14 @@ def render_home(session_state):
                   border-radius:14px;
                   text-align:center;
                 ">
-                  <div style="font-size:1.6rem;margin-bottom:10px;">🎉</div>
                   <div style="font-size:1.0rem;font-weight:700;color:#F9FAFB;
                                margin-bottom:8px;">
                     Analysis Ready!
                   </div>
-                  <div style="font-size:0.83rem;color:#9CA3AF;line-height:1.7;
-                               margin-bottom:16px;">
-                    <b style="color:#60A5FA;">{_n_p:,} papers</b> have been processed and
-                    indexed. Use the <b style="color:#93C5FD;">sidebar on the left</b>
+                  <div style="font-size:0.83rem;color:#9CA3AF;line-height:1.7;">
+                    Research papers from PubMed have been processed and indexed.
+                    Use the <b style="color:#93C5FD;">sidebar on the left</b>
                     to navigate to any view and explore your results.
-                  </div>
-                  <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center;">
-                    <span style="background:#1C2539;color:#60A5FA;
-                                 border:1px solid #1E3A5F;border-radius:20px;
-                                 padding:5px 15px;font-size:0.75rem;font-weight:600;">
-                      Analysis
-                    </span>
-                    <span style="background:#1C2539;color:#60A5FA;
-                                 border:1px solid #1E3A5F;border-radius:20px;
-                                 padding:5px 15px;font-size:0.75rem;font-weight:600;">
-                      Knowledge Graph
-                    </span>
-                    <span style="background:#1C2539;color:#60A5FA;
-                                 border:1px solid #1E3A5F;border-radius:20px;
-                                 padding:5px 15px;font-size:0.75rem;font-weight:600;">
-                      Hypotheses
-                    </span>
-                    <span style="background:#1C2539;color:#60A5FA;
-                                 border:1px solid #1E3A5F;border-radius:20px;
-                                 padding:5px 15px;font-size:0.75rem;font-weight:600;">
-                      Semantic Search
-                    </span>
-                    <span style="background:#1C2539;color:#60A5FA;
-                                 border:1px solid #1E3A5F;border-radius:20px;
-                                 padding:5px 15px;font-size:0.75rem;font-weight:600;">
-                      Chat
-                    </span>
                   </div>
                 </div>
                 """,
