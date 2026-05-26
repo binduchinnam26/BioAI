@@ -328,6 +328,57 @@ def render_topic_evolution(topics_over_time_df):
     # Normalise each year to 0-100 %
     pivot_pct = pivot.div(pivot.sum(axis=1).replace(0, 1), axis=0) * 100
 
+    # ── Single-year fallback: bar chart of topic distribution ─────────────────
+    if len(pivot_pct.index) == 1:
+        year_val = pivot_pct.index[0]
+        topic_shares = pivot_pct.iloc[0].sort_values(ascending=False)
+
+        st.info(
+            f"ℹ️ All papers in this corpus are from {year_val}. "
+            "Showing topic distribution for this year instead of time evolution "
+            "(time evolution requires data from at least 2 different years)."
+        )
+
+        bar_colors = [
+            COMMUNITY_COLORS[i % len(COMMUNITY_COLORS)]
+            for i in range(len(topic_shares))
+        ]
+
+        fig = go.Figure()
+        fig.add_trace(
+            go.Bar(
+                x=topic_shares.index.tolist(),
+                y=topic_shares.values.tolist(),
+                marker_color=bar_colors,
+                hovertemplate="<b>%{x}</b><br>Share: %{y:.1f}%<extra></extra>",
+            )
+        )
+        fig.update_layout(**{
+            **_DARK_LAYOUT,
+            "height": 400,
+            "title": dict(
+                text=f"Topic Distribution — {year_val}",
+                font=dict(color=COLOR_TEXT_PRIMARY, size=14),
+                x=0,
+            ),
+            "yaxis": dict(
+                title="Relative Frequency (%)",
+                gridcolor="#1F2937",
+                zerolinecolor="#1F2937",
+                ticksuffix="%",
+            ),
+            "xaxis": dict(
+                title="Topic",
+                gridcolor="#1F2937",
+                zerolinecolor="#1F2937",
+                tickangle=-30,
+            ),
+            "showlegend": False,
+        })
+        st.plotly_chart(fig, use_container_width=True, config=_NO_MODEBAR)
+        return
+
+    # ── Multi-year: stacked area chart ────────────────────────────────────────
     fig = go.Figure()
     topic_labels = list(pivot_pct.columns)
 
