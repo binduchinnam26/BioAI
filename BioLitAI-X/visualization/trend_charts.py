@@ -37,8 +37,14 @@ _KW_TYPE_COLORS = {
 def render_publication_trend(papers_df):
     """
     Render a combined publication trend chart: bars for annual counts on the
-    left Y-axis and a spline line for cumulative totals on the right Y-axis,
-    both sharing the same X-axis in one panel.
+    left Y-axis and a spline line for cumulative totals on the right Y-axis.
+
+    Bar colours indicate year-over-year growth direction:
+      green  (#10B981) = more papers than the previous year
+      red    (#EF4444) = fewer papers than the previous year
+      blue   (#3B82F6) = first year or unchanged
+    A dashed amber line marks the corpus average papers/year.
+    X-axis ticks are pinned to actual data years to prevent duplicates.
     """
     import streamlit as st
 
@@ -66,18 +72,35 @@ def render_publication_trend(papers_df):
     year_counts["pub_year"] = year_counts["pub_year"].astype(int)
     year_counts["cumulative"] = year_counts["count"].cumsum()
 
+    years  = year_counts["pub_year"].tolist()
+    counts = year_counts["count"].tolist()
+
+    # ── Growth-direction bar colours ──────────────────────────────────────────
+    bar_colors = []
+    for i, c in enumerate(counts):
+        if i == 0:
+            bar_colors.append("#3B82F6")        # first year — neutral blue
+        elif c > counts[i - 1]:
+            bar_colors.append("#10B981")        # growth — green
+        elif c < counts[i - 1]:
+            bar_colors.append("#EF4444")        # decline — red
+        else:
+            bar_colors.append("#3B82F6")        # unchanged — neutral blue
+
+    avg_per_year = year_counts["count"].mean()
+
     fig = go.Figure()
 
     # Bar trace — annual counts (left Y-axis)
     fig.add_trace(
         go.Bar(
-            x=year_counts["pub_year"],
-            y=year_counts["count"],
+            x=years,
+            y=counts,
             name="Papers / Year",
-            marker_color="#3B82F6",
-            marker_line_color="#1D4ED8",
+            marker_color=bar_colors,
+            marker_line_color="rgba(0,0,0,0.15)",
             marker_line_width=0.5,
-            opacity=0.85,
+            opacity=0.88,
             yaxis="y1",
             hovertemplate=(
                 "<b>Year:</b> %{x}<br>"
@@ -86,11 +109,26 @@ def render_publication_trend(papers_df):
         )
     )
 
-    # Line trace — cumulative (right Y-axis, spline)
+    # Average reference line (dashed amber, left Y-axis)
     fig.add_trace(
         go.Scatter(
-            x=year_counts["pub_year"],
-            y=year_counts["cumulative"],
+            x=[years[0], years[-1]],
+            y=[avg_per_year, avg_per_year],
+            name=f"Avg {avg_per_year:.1f} / yr",
+            mode="lines",
+            line=dict(color="#F59E0B", width=1.5, dash="dash"),
+            yaxis="y1",
+            hovertemplate=(
+                f"Average: {avg_per_year:.1f} papers/yr<extra></extra>"
+            ),
+        )
+    )
+
+    # Cumulative line (right Y-axis, spline)
+    fig.add_trace(
+        go.Scatter(
+            x=years,
+            y=year_counts["cumulative"].tolist(),
             name="Cumulative",
             mode="lines+markers",
             line=dict(color="#10B981", shape="spline", smoothing=1.3, width=2.5),
@@ -117,10 +155,11 @@ def render_publication_trend(papers_df):
             bgcolor="rgba(0,0,0,0)",
             font=dict(color=COLOR_TEXT_SECONDARY, size=12),
         ),
-        # Override _DARK_LAYOUT's xaxis/yaxis with chart-specific settings
         "xaxis": dict(
             gridcolor="#1F2937",
             zerolinecolor="#1F2937",
+            tickmode="array",
+            tickvals=years,
             tickformat="d",
         ),
         "yaxis": dict(
