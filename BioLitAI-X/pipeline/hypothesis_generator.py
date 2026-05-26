@@ -588,6 +588,7 @@ class HypothesisGenerator:
         }
 
         backoff = _QUOTA_BACKOFF_BASE
+        _had_quota_failure = False   # True if any attempt hit a 429/quota error
         for attempt in range(_MAX_RETRIES):
             self._throttle()
             try:
@@ -617,6 +618,7 @@ class HypothesisGenerator:
             err = r.json().get("error", {})
             err_msg = err.get("message", "")
             if r.status_code == 429 or "resource_exhausted" in err_msg.lower():
+                _had_quota_failure = True   # record that a quota/rate error occurred
                 # Detect daily quota (RPD) vs per-minute rate limit (RPM).
                 # Daily quota: resets at midnight PT — no point retrying.
                 # RPM: resets in ~60 s — worth waiting and retrying.
@@ -702,6 +704,18 @@ class HypothesisGenerator:
                 time.sleep(delay)
 
         logger.error("Gemini call permanently failed after %d attempts.", _MAX_RETRIES)
+        # Behaviour-based daily-quota detection: if every attempt ended with a
+        # quota/rate 429 and none recovered despite 65 s + 130 s backoff waits,
+        # it is definitively a daily (RPD) wall — real RPM errors recover within
+        # 60 s.  Return the sentinel so the caller can surface a clear error card
+        # instead of silently returning no results.
+        if _had_quota_failure:
+            logger.error(
+                "All %d retries failed with quota errors — treating as daily "
+                "quota exhaustion (RPD). Quota resets at midnight Pacific Time.",
+                _MAX_RETRIES,
+            )
+            return "__DAILY_QUOTA_EXCEEDED__"
         return None
 
     @staticmethod
