@@ -175,6 +175,148 @@ def _render_topic_net_tab(session_state, papers_df):
     except Exception as exc:
         st.error(f"Could not render topic network: {exc}")
 
+    _render_topic_paper_table(session_state, papers_df, graph)
+
+
+def _render_topic_paper_table(session_state, papers_df, graph):
+    """
+    Below the topic network, render one st.expander per topic listing
+    up to 5 representative papers (title, year, first author, PubMed link).
+    """
+    import streamlit as st
+    import json
+
+    if graph is None or graph.number_of_nodes() == 0:
+        return
+    if papers_df is None or (hasattr(papers_df, "empty") and papers_df.empty):
+        return
+
+    # Reconstruct topic → pmid list from topic_model_results
+    topic_results = session_state.get("topic_model_results")
+    if not topic_results or not topic_results.get("topics"):
+        return
+
+    topics = topic_results["topics"]
+    pmids = papers_df["pmid"].astype(str).tolist()
+
+    # Build pmid → row lookup for fast access
+    papers_lookup = {}
+    for _, row in papers_df.iterrows():
+        pid = str(row.get("pmid", "")).strip()
+        if pid:
+            papers_lookup[pid] = row
+
+    # Group pmids by topic_id, skip outlier topic -1
+    topic_pmids: dict = {}
+    for i, tid in enumerate(topics):
+        if i >= len(pmids):
+            break
+        tid = int(tid)
+        if tid < 0:
+            continue
+        topic_pmids.setdefault(tid, []).append(pmids[i])
+
+    if not topic_pmids:
+        return
+
+    st.markdown(
+        "<hr style='border-color:#1F2937;margin:16px 0 12px 0;'>",
+        unsafe_allow_html=True,
+    )
+    st.markdown(
+        '<p style="font-size:0.875rem;font-weight:600;color:#F9FAFB;'
+        'margin-bottom:2px;">Papers by Topic</p>'
+        '<p style="font-size:0.75rem;color:#6B7280;margin-bottom:12px;">'
+        'Top 5 representative papers per discovered research topic</p>',
+        unsafe_allow_html=True,
+    )
+
+    # Sort topics by paper count descending
+    sorted_topics = sorted(
+        [(tid, plist) for tid, plist in topic_pmids.items() if graph.has_node(tid)],
+        key=lambda x: graph.nodes[x[0]].get("weight", 0),
+        reverse=True,
+    )
+
+    for tid, pmid_list in sorted_topics:
+        node_data = graph.nodes[tid]
+        raw_words = node_data.get("top_words", [])
+        words = [
+            w[0] if isinstance(w, (list, tuple)) else str(w)
+            for w in raw_words[:3]
+        ]
+        label = ", ".join(words) if words else f"Topic {tid}"
+        paper_count = node_data.get("weight", len(pmid_list))
+        color = node_data.get("color_hex", "#3B82F6")
+
+        with st.expander(f"{label}  ·  {paper_count} papers", expanded=False):
+            shown = 0
+            # Sort by year descending so most recent papers appear first
+            def _year_of(pid):
+                r = papers_lookup.get(pid)
+                if r is None:
+                    return 0
+                y = r.get("pub_year", 0)
+                try:
+                    return int(y)
+                except Exception:
+                    return 0
+
+            for pmid in sorted(pmid_list, key=_year_of, reverse=True):
+                if shown >= 5:
+                    break
+                row = papers_lookup.get(pmid)
+                if row is None:
+                    continue
+                title = str(row.get("title", "")).strip()
+                if not title or title.lower() == "nan":
+                    continue
+
+                year = row.get("pub_year", "")
+                try:
+                    year_str = str(int(year))
+                except Exception:
+                    year_str = "—"
+
+                authors = row.get("authors", [])
+                if isinstance(authors, str):
+                    try:
+                        authors = json.loads(authors)
+                    except Exception:
+                        authors = []
+                first_author = ""
+                if isinstance(authors, list) and authors:
+                    a = authors[0]
+                    first_author = (
+                        a.get("name") or a.get("normalized_name") or ""
+                        if isinstance(a, dict) else str(a)
+                    )
+                author_str = f"{first_author} et al." if first_author.strip() else ""
+                meta = "&nbsp;·&nbsp;".join(filter(None, [author_str, year_str]))
+
+                st.markdown(
+                    f'<div style="background:#1C2539;border-radius:6px;'
+                    f'padding:10px 14px;margin-bottom:8px;'
+                    f'border-left:3px solid {color};">'
+                    f'<div style="font-size:0.875rem;font-weight:600;color:#F9FAFB;'
+                    f'margin-bottom:4px;line-height:1.45;">{title}</div>'
+                    f'<div style="font-size:0.75rem;color:#9CA3AF;">{meta}'
+                    f'{"&nbsp;·&nbsp;" if meta else ""}'
+                    f'<a href="https://pubmed.ncbi.nlm.nih.gov/{pmid}/" '
+                    f'target="_blank" style="color:#3B82F6;text-decoration:none;">'
+                    f'PMID&nbsp;{pmid}</a></div>'
+                    f'</div>',
+                    unsafe_allow_html=True,
+                )
+                shown += 1
+
+            if shown == 0:
+                st.markdown(
+                    '<p style="font-size:0.8rem;color:#6B7280;'
+                    'padding:4px 0;">No paper details available for this topic.</p>',
+                    unsafe_allow_html=True,
+                )
+
 
 def _build_topic_graph_safe(session_state, papers_df):
     """
