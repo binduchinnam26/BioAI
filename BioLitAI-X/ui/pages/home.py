@@ -29,7 +29,7 @@ def render_home(session_state):
           </div>
           <div style="font-size:1.05rem;color:#9CA3AF;
                      max-width:560px;margin:0 auto;line-height:1.6;">
-            From Literature to Discovery &nbsp;—&nbsp;
+            From Literature to Discovery
             AI-Powered Biomedical Intelligence
           </div>
           <div style="margin-top:0.75rem;font-size:0.78rem;color:#4B5563;
