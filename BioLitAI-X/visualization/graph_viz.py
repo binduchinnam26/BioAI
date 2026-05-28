@@ -270,7 +270,7 @@ _KG_FIT_JS = """
         // Step 2: single smooth zoom-in — one animation, no flicker
         setTimeout(function() {
           network.moveTo({
-            scale: network.getScale() * 3.8,
+            scale: network.getScale() * 5.0,
             animation: { duration: 700, easingFunction: 'easeInOutQuad' }
           });
         }, 50);
