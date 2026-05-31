@@ -276,6 +276,25 @@ def _label_font(weight: float, p50: float, p75: float) -> Dict:
 
 # ── PyVis HTML post-processing ────────────────────────────────────────────────
 
+_KEYWORD_FIT_JS = """
+<script>
+(function() {
+  // Keyword network auto-fit: Streamlit resizes the iframe after stabilization,
+  // which pushes the network off-screen. This handler re-fits every time the
+  // container resizes, and also fires additional delayed fits to catch late resizes.
+  function _kfit() {
+    network.fit({ animation: false });
+  }
+  window.addEventListener('resize', _kfit);
+  network.once('stabilizationIterationsDone', function() {
+    [1000, 2000, 3500, 5000, 8000].forEach(function(ms) {
+      setTimeout(_kfit, ms);
+    });
+  });
+})();
+</script>
+"""
+
 _STABILIZE_JS = """
 <script>
 (function() {
@@ -604,9 +623,10 @@ def _post_process_html(html: str, node_count: int = 0, network_type: str = "defa
         "</style>"
     )
     overlap_js = _LABEL_OVERLAP_JS if network_type == "keyword" else ""
+    keyword_fit_js = _KEYWORD_FIT_JS if network_type == "keyword" else ""
     html = html.replace(
         "</body>",
-        _loading_bar_css + _STABILIZE_JS + _HIGHLIGHT_JS + _CONTROLS_JS + overlap_js + "</body>",
+        _loading_bar_css + _STABILIZE_JS + _HIGHLIGHT_JS + _CONTROLS_JS + overlap_js + keyword_fit_js + "</body>",
     )
     return html
 
