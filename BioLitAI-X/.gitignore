@@ -1,0 +1,12 @@
+__pycache__/
+*.py[cod]
+*.pyo
+.env
+*.db
+*.db-wal
+*.db-shm
+logs/
+models/
+data/embeddings/
+data/raw/
+data/processed/
