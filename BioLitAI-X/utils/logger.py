@@ -1,5 +1,5 @@
 """
-Centralised logging configuration for BioLitAI-X.
+Centralised logging configuration for Quaesytr.
 Import get_logger(name) in every module instead of logging.getLogger directly.
 """
 

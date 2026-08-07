@@ -1,5 +1,5 @@
 """
-Reusable card components for BioLitAI-X.
+Reusable card components for Quaesytr.
 Streamlit is imported inside each function per project conventions.
 """
 import re

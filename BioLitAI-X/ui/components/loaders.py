@@ -1,5 +1,5 @@
 """
-Animated loading components for BioLitAI-X.
+Animated loading components for Quaesytr.
 All functions use st.markdown with inline HTML/CSS for rendering.
 Streamlit is imported inside each function per project conventions.
 """

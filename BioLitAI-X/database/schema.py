@@ -1,5 +1,5 @@
 """
-SQLite schema definitions for BioLitAI-X.
+SQLite schema definitions for Quaesytr.
 All tables are created via plain DDL executed against the SQLite connection.
 """
 

@@ -1,5 +1,5 @@
 """
-Global configuration for BioLitAI-X.
+Global configuration for Quaesytr.
 All values are read from environment variables or defined as constants here.
 No domain-specific defaults exist in this file.
 """

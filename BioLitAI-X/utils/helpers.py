@@ -1,5 +1,5 @@
 """
-Shared utility functions used across the BioLitAI-X pipeline.
+Shared utility functions used across the Quaesytr pipeline.
 """
 
 import colorsys
