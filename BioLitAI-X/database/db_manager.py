@@ -1,5 +1,5 @@
 """
-DatabaseManager — thread-safe SQLite interface for BioLitAI-X.
+DatabaseManager — thread-safe SQLite interface for Quaesytr.
 Provides all CRUD operations needed by the pipeline and UI layers.
 """
 

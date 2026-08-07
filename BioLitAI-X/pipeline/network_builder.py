@@ -377,7 +377,7 @@ class NetworkBuilder:
 
         try:
             import requests
-            headers = {"User-Agent": f"BioLitAI-X (mailto:{OPENALEX_EMAIL})"}
+            headers = {"User-Agent": f"Quaesytr (mailto:{OPENALEX_EMAIL})"}
             added = 0
             for pmid in pmids[:50]:   # limit API calls on large corpora
                 url = f"{OPENALEX_API_BASE}/works/pmid:{pmid}"

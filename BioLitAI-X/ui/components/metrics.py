@@ -1,5 +1,5 @@
 """
-Metric / KPI display components for BioLitAI-X.
+Metric / KPI display components for Quaesytr.
 All rendering uses st.markdown with inline HTML.
 Streamlit is imported inside each function per project conventions.
 """

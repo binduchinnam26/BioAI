@@ -6,7 +6,7 @@ Streamlit is imported inside the function per project conventions.
 
 def render_home(session_state):
     """
-    Render the BioLitAI-X home page.
+    Render the Quaesytr home page.
 
     Layout
     ------
@@ -25,7 +25,7 @@ def render_home(session_state):
                      background:linear-gradient(135deg,#3B82F6,#9B72CF);
                      -webkit-background-clip:text;-webkit-text-fill-color:transparent;
                      background-clip:text;line-height:1.2;margin-bottom:0.75rem;">
-            BioLitAI-X
+            Quaesytr
           </div>
           <div style="font-size:1.05rem;color:#9CA3AF;
                      max-width:560px;margin:0 auto;line-height:1.6;">
@@ -148,7 +148,7 @@ def render_home(session_state):
 
 def _run_pipeline(session_state, query: str, max_results: int):
     """
-    Execute the full BioLitAI-X pipeline with live stepper UI.
+    Execute the full Quaesytr pipeline with live stepper UI.
 
     Steps
     -----

@@ -1,5 +1,5 @@
 """
-BioLitAI-X — main Streamlit entry point.
+Quaesytr — main Streamlit entry point.
 
 Run with:
     streamlit run app.py
@@ -20,14 +20,14 @@ import streamlit as st
 
 # ── Page configuration ─────────────────────────────────────────────────────
 st.set_page_config(
-    page_title="BioLitAI-X",
+    page_title="Quaesytr",
     page_icon="🧬",
     layout="wide",
     initial_sidebar_state="expanded",
     menu_items={
         "Get help": None,
         "Report a bug": None,
-        "About": "BioLitAI-X — Biomedical Literature Intelligence Platform",
+        "About": "Quaesytr — Biomedical Literature Intelligence Platform",
     },
 )
 

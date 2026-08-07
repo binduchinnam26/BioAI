@@ -1,5 +1,5 @@
 """
-Sidebar component for BioLitAI-X.
+Sidebar component for Quaesytr.
 Streamlit is imported inside the function per project conventions.
 """
 
@@ -33,7 +33,7 @@ def render_sidebar(session_state) -> str:
             <div style="text-align:center;padding:0.5rem 0 1rem 0;">
               <div style="font-size:2.8rem;margin-bottom:4px;">🧬</div>
               <div style="font-size:1.25rem;font-weight:700;
-                         color:#F9FAFB;letter-spacing:0.02em;">BioLitAI-X</div>
+                         color:#F9FAFB;letter-spacing:0.02em;">Quaesytr</div>
               <div style="font-size:0.72rem;color:#9CA3AF;
                          letter-spacing:0.08em;text-transform:uppercase;">
                 Biomedical Intelligence
@@ -287,7 +287,7 @@ def render_sidebar(session_state) -> str:
         st.markdown("<br>", unsafe_allow_html=True)
         st.markdown(
             '<div style="font-size:0.65rem;color:#374151;text-align:center;">'
-            "BioLitAI-X · Phase 6"
+            "Quaesytr · Phase 6"
             "</div>",
             unsafe_allow_html=True,
         )
