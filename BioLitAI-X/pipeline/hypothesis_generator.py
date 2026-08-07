@@ -15,6 +15,7 @@ import json
 import logging
 import os
 import re
+import threading
 import time
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
@@ -101,6 +102,13 @@ class HypothesisGenerator:
     subsequent runs — important for free-tier quota management.
     """
 
+    # Shared across every instance (i.e. every visitor session) so the
+    # app-wide Gemini call rate stays within the free-tier RPM limit even
+    # under concurrent traffic — a per-instance clock only paces one user
+    # against themselves, not multiple users against each other.
+    _shared_lock = threading.Lock()
+    _shared_last_call_time: float = 0.0
+
     def __init__(self):
         self._api_keys: List[str] = []   # all keys in priority order
         self._key_index: int = 0          # index of currently active key
@@ -108,7 +116,6 @@ class HypothesisGenerator:
         self._model_name: str = ""
         self._gen_config: dict = {}
         self._call_delay: float = _FLASH_DELAY
-        self._last_call_time: float = 0.0
 
     @property
     def _api_key(self) -> str:
@@ -212,6 +219,7 @@ class HypothesisGenerator:
         # Verify at least the first key can reach the model
         import requests as _req
         test_url = _GEMINI_REST_URL.format(model=self._model_name)
+        self._throttle()
         try:
             r = _req.post(
                 test_url,
@@ -240,13 +248,20 @@ class HypothesisGenerator:
     # ── Rate-limiting ─────────────────────────────────────────────────────────
 
     def _throttle(self):
-        """Enforce minimum inter-call delay for free-tier quota safety."""
-        elapsed = time.monotonic() - self._last_call_time
-        wait = self._call_delay - elapsed
-        if wait > 0:
-            logger.debug("Rate-limit wait: %.1f s", wait)
-            time.sleep(wait)
-        self._last_call_time = time.monotonic()
+        """
+        Enforce minimum inter-call delay for free-tier quota safety.
+
+        Uses the class-level shared clock/lock so calls from every visitor
+        session in this process are paced against one another, not just
+        against calls from the same session.
+        """
+        with HypothesisGenerator._shared_lock:
+            elapsed = time.monotonic() - HypothesisGenerator._shared_last_call_time
+            wait = self._call_delay - elapsed
+            if wait > 0:
+                logger.debug("Rate-limit wait: %.1f s", wait)
+                time.sleep(wait)
+            HypothesisGenerator._shared_last_call_time = time.monotonic()
 
     # ── Evidence context builder ──────────────────────────────────────────────
 
