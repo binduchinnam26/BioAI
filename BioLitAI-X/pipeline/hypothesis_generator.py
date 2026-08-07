@@ -642,19 +642,25 @@ class HypothesisGenerator:
                     _is_rpm = "per_minute" in _quota_limit or "minute" in _quota_limit
                     _is_daily = "per_day" in _quota_limit or "_per_1_day" in _quota_limit
                     # If quota_limit exists but matches neither pattern, treat
-                    # as daily (safe default — avoids infinite retry loops).
+                    # as recoverable — let the retry loop run instead of
+                    # giving up immediately. The behaviour-based check at the
+                    # end of this function (after _MAX_RETRIES) is what
+                    # ultimately decides "daily quota" for genuinely
+                    # ambiguous cases, based on repeated failures surviving
+                    # real backoff waits rather than a single error message.
                     if not _is_rpm and not _is_daily:
-                        _is_daily = True
+                        _is_daily = False
                 else:
                     # Fallback: no details field — infer from message text.
                     # Only treat as RPM if the message explicitly names a
-                    # per-minute / rate-limit concept; default to daily.
+                    # per-minute / rate-limit concept; default to recoverable
+                    # otherwise (see comment above).
                     _err_lower = err_msg.lower()
                     _is_rpm = any(k in _err_lower for k in (
                         "per_minute", "per minute", "rpm",
                         "rate_limit", "rate limit", "rate-limit",
                     ))
-                    _is_daily = not _is_rpm
+                    _is_daily = "per_day" in _err_lower or "per day" in _err_lower
 
                 # Try rotating to the next key before waiting
                 if self._rotate_key():
