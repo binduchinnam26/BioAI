@@ -31,8 +31,8 @@ class DailyQuotaError(Exception):
     """
 
 # ── Free-tier constants ────────────────────────────────────────────────────────
-# gemini-2.0-flash-lite free tier: 30 RPM  →  1 call / 4 s is safe
-# gemini-1.5-pro         free tier:  2 RPM  →  1 call / 32 s is safe
+# gemini-3.1-flash-lite free tier: 15 RPM  →  1 call / 8 s is safe
+# gemini-1.5-pro        free tier:  2 RPM  →  1 call / 32 s is safe
 _FLASH_DELAY = 8        # seconds between Flash calls (conservative: ~7.5 RPM)
 _PRO_DELAY   = 32       # seconds between Pro calls
 _MAX_RETRIES = 3        # network / transient errors
@@ -40,8 +40,9 @@ _QUOTA_BACKOFF_BASE = 65  # seconds; doubles on each quota retry (>60s to clear 
 _TOP_GAPS_DEFAULT  = 5    # how many gaps to process per run (free-tier safe)
 
 # ── Model selection ────────────────────────────────────────────────────────────
-# gemini-2.0-flash-lite: 30 RPM / 1500 RPD on free tier — most generous flash option
-_FLASH_MODEL = "gemini-2.0-flash-lite"
+# gemini-3.1-flash-lite: 15 RPM on free tier — highest-RPM flash option currently
+# offered (gemini-2.0-flash-lite has been phased down to 0 RPM on the free tier).
+_FLASH_MODEL = "gemini-3.1-flash-lite"
 _PRO_MODEL   = "gemini-2.5-pro"
 
 # REST API endpoint — avoids grpc/cffi dependency issues with the Python SDK
@@ -192,12 +193,15 @@ class HypothesisGenerator:
         # Remap deprecated / lower-quota model names to better free-tier equivalents
         requested_model = os.getenv("GEMINI_MODEL", GEMINI_MODEL)
         _deprecated = {
-            "gemini-1.5-flash":        "gemini-2.0-flash-lite",
-            "gemini-1.5-flash-latest": "gemini-2.0-flash-lite",
+            "gemini-1.5-flash":        _FLASH_MODEL,
+            "gemini-1.5-flash-latest": _FLASH_MODEL,
             "gemini-1.5-pro":          "gemini-2.5-pro",
             "gemini-1.5-pro-latest":   "gemini-2.5-pro",
-            "gemini-pro":              "gemini-2.0-flash-lite",
-            "gemini-2.5-flash-lite":   "gemini-2.0-flash-lite",  # lower quota → better model
+            "gemini-pro":              _FLASH_MODEL,
+            # Google has phased these down to a 0 RPM free-tier allocation —
+            # remap to the current highest-RPM flash-lite model instead.
+            "gemini-2.0-flash-lite":   _FLASH_MODEL,
+            "gemini-2.5-flash-lite":   _FLASH_MODEL,
         }
         if requested_model in _deprecated:
             new_name = _deprecated[requested_model]
@@ -230,7 +234,7 @@ class HypothesisGenerator:
             if r.status_code == 404:
                 raise EnvironmentError(
                     f"Gemini model '{self._model_name}' not found. "
-                    "Set GEMINI_MODEL=gemini-2.5-flash-lite in your .env file."
+                    "Set GEMINI_MODEL=gemini-3.1-flash-lite in your .env file."
                 )
             if r.status_code not in (200, 429):
                 err = r.json().get("error", {})
@@ -565,8 +569,8 @@ class HypothesisGenerator:
         if response_text == "__QUOTA_EXCEEDED__":
             response_text = (
                 "**Gemini free-tier quota exceeded.** "
-                "The free tier allows only a limited number of requests per day "
-                "(typically 50 RPD for gemini-2.5-flash-lite). "
+                "The free tier allows only a limited number of requests per minute/day "
+                "(15 RPM for gemini-3.1-flash-lite). "
                 "Please wait until your quota resets (usually midnight Pacific Time) "
                 "or upgrade your API key at https://aistudio.google.com/app/apikey"
             )
@@ -712,7 +716,7 @@ class HypothesisGenerator:
             elif r.status_code == 404:
                 logger.error(
                     "Gemini model '%s' not found (404). "
-                    "Set GEMINI_MODEL=gemini-2.5-flash-lite in .env.",
+                    "Set GEMINI_MODEL=gemini-3.1-flash-lite in .env.",
                     self._model_name,
                 )
                 return None

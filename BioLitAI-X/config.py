@@ -75,9 +75,11 @@ OPENALEX_EMAIL = os.getenv("ENTREZ_EMAIL")   # reuse same contact email
 
 # ── Hypothesis generation ─────────────────────────────────────────────────────
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-# Default to flash — generous free-tier quota (15 RPM / 1 500 RPD).
-# Override to "gemini-2.5-pro" in .env for higher quality if quota allows.
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.0-flash-lite")
+# Default to flash-lite — highest free-tier RPM of the current model line-up.
+# gemini-2.0-flash-lite has been phased down to a 0 RPM free-tier allocation by
+# Google, so it must not be used as the default. Override to "gemini-2.5-pro"
+# in .env for higher quality if quota allows.
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.1-flash-lite")
 GEMINI_TEMPERATURE = 0.3
 GEMINI_TOP_P = 0.85
 GEMINI_TOP_K = 40
