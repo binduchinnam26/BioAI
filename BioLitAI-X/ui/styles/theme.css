@@ -219,8 +219,8 @@ div.metric-card:hover {
   -moz-user-select: none;
 }
 
-[data-testid="stSliderThumbValue"],
-[data-testid="stSliderTickBar"] {
+.stSlider [data-testid="stSliderThumbValue"],
+.stSlider [data-testid="stSliderTickBar"] div {
   background: transparent;
 }
 
