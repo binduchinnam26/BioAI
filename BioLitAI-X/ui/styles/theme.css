@@ -212,6 +212,13 @@ div.metric-card:hover {
   border: 2px solid #1D4ED8;
 }
 
+.stSlider,
+.stSlider [data-baseweb="slider"] {
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+}
+
 /* ── Radio / Checkbox ────────────────────────────────────── */
 .stRadio > label,
 .stCheckbox > label {
