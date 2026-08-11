@@ -219,6 +219,18 @@ div.metric-card:hover {
   -moz-user-select: none;
 }
 
+[data-testid="stSliderThumbValue"],
+[data-testid="stSliderTickBar"] {
+  background: transparent;
+}
+
+[data-testid="stSliderThumbValue"] p,
+[data-testid="stSliderTickBar"] p {
+  color: #3B82F6;
+  background: transparent;
+  font-weight: 600;
+}
+
 /* ── Radio / Checkbox ────────────────────────────────────── */
 .stRadio > label,
 .stCheckbox > label {
