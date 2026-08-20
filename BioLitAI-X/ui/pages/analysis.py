@@ -11,11 +11,11 @@ def render_analysis(session_state):
 
     Tabs
     ----
-    1. Trends          – publication trend + topic evolution charts
-    2. Keywords        – top-keyword bar chart
-    3. Authors         – author productivity chart
-    4. Co-authorship   – co-authorship network (PyVis)
-    5. Keyword Network – keyword co-occurrence network (PyVis)
+    1. Keyword Network – keyword co-occurrence network (PyVis)
+    2. Co-authorship   – co-authorship network (PyVis)
+    3. Keywords        – top-keyword bar chart
+    4. Authors         – author productivity chart
+    5. Trends          – publication trend + topic evolution charts
     6. Topic Network   – topic similarity network (PyVis)
     """
     import streamlit as st
@@ -36,34 +36,34 @@ def render_analysis(session_state):
     )
 
     tab_labels = [
-        "Trends",
+        "Keyword Network",
+        "Co-authorship Network",
         "Keywords",
         "Authors",
-        "Co-authorship Network",
-        "Keyword Network",
+        "Trends",
         "Topics",
     ]
     tabs = st.tabs(tab_labels)
 
-    # ── Tab 0: Trends ─────────────────────────────────────────────────────────
+    # ── Tab 0: Keyword Co-occurrence Network ──────────────────────────────────
     with tabs[0]:
-        _render_trends_tab(session_state, papers_df)
+        _render_keyword_net_tab(session_state, papers_df)
 
-    # ── Tab 1: Keywords ───────────────────────────────────────────────────────
+    # ── Tab 1: Co-authorship Network ──────────────────────────────────────────
     with tabs[1]:
-        _render_keywords_tab(papers_df)
-
-    # ── Tab 2: Authors ────────────────────────────────────────────────────────
-    with tabs[2]:
-        _render_authors_tab(papers_df)
-
-    # ── Tab 3: Co-authorship Network ──────────────────────────────────────────
-    with tabs[3]:
         _render_coauthor_tab(session_state)
 
-    # ── Tab 4: Keyword Co-occurrence Network ──────────────────────────────────
+    # ── Tab 2: Keywords ───────────────────────────────────────────────────────
+    with tabs[2]:
+        _render_keywords_tab(papers_df)
+
+    # ── Tab 3: Authors ────────────────────────────────────────────────────────
+    with tabs[3]:
+        _render_authors_tab(papers_df)
+
+    # ── Tab 4: Trends ─────────────────────────────────────────────────────────
     with tabs[4]:
-        _render_keyword_net_tab(session_state, papers_df)
+        _render_trends_tab(session_state, papers_df)
 
     # ── Tab 5: Topic Network ──────────────────────────────────────────────────
     with tabs[5]:
