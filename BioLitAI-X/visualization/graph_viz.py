@@ -478,6 +478,21 @@ def render_knowledge_graph(
 
         st.components.v1.html(html, height=870, scrolling=False)
 
+    # ── Graph explainer banner ────────────────────────────────────────────────
+    st.markdown(
+        "<div style='font-size:13px;color:#9CA3AF;line-height:1.6;"
+        "margin-top:12px;padding:10px 14px;background:#111827;"
+        "border-radius:6px;border:1px solid #1F2937;'>"
+        "<b style='color:#D1D5DB;'>Reading this graph:</b> Nodes are biomedical "
+        "entities (diseases, genes, chemicals, etc.) extracted from the corpus, "
+        "sized by how often they're mentioned. Arrows show reported relationships "
+        "between them. Pulsing yellow nodes mark research gaps &mdash; likely-related "
+        "concepts not yet studied together. Place cursor on a node/edge for full "
+        "detail including source papers, click a node to isolate its connections."
+        "</div>",
+        unsafe_allow_html=True,
+    )
+
     # ── Right detail panel (triggered by double-click) ────────────────────────
     selected_entity = st.session_state.get(f"{key_prefix}_selected_entity")
     if selected_entity and graph.has_node(selected_entity):
