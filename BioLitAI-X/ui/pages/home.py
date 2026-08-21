@@ -20,7 +20,7 @@ def render_home(session_state):
     # ── 1. Hero section ───────────────────────────────────────────────────────
     st.markdown(
         """
-        <div style="text-align:center;padding:1.5rem 0 2rem 0;">
+        <div style="text-align:center;padding:0.25rem 0 2rem 0;">
           <div style="font-size:3.5rem;font-weight:800;
                      background:linear-gradient(135deg,#3B82F6,#9B72CF);
                      -webkit-background-clip:text;-webkit-text-fill-color:transparent;
