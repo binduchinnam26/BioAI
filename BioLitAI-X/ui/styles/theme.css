@@ -40,7 +40,7 @@ footer    { visibility: hidden; }
 }
 
 .main .block-container {
-  padding-top: 2rem;
+  padding-top: 1rem;
   padding-bottom: 4rem;
   max-width: 1400px;
   animation: fadeIn 200ms ease-out;
@@ -58,7 +58,7 @@ section[data-testid="stSidebar"],
 }
 
 [data-testid="stSidebar"] .block-container {
-  padding-top: 0.25rem;
+  padding-top: 0;
   padding-bottom: 2rem;
 }
 
